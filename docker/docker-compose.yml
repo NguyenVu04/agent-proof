@@ -1,0 +1,148 @@
+# AgentProof local stack.
+#   cp docker/.env.example docker/.env && docker compose -f docker/docker-compose.yml up -d --build
+# SPA:      http://localhost:${FRONTEND_PORT:-3000}   (served directly, not via Traefik)
+# API:      http://localhost/api/docs                 (via Traefik)
+# Traefik:  http://localhost:8080/dashboard/
+name: agentproof
+
+x-healthcheck: &healthcheck
+  interval: 10s
+  timeout: 5s
+  retries: 10
+  start_period: 20s
+
+services:
+  traefik:
+    image: traefik:v3.7
+    command:
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --entrypoints.web.address=:80
+      - --api.dashboard=true
+      - --api.insecure=true # dashboard on :8080, bound to localhost below
+      - --ping=true
+      - --log.level=INFO
+      - --accesslog=true
+      - --accesslog.format=json
+    ports:
+      - "80:80"
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    healthcheck:
+      <<: *healthcheck
+      test: ["CMD", "traefik", "healthcheck", "--ping"]
+    restart: unless-stopped
+
+  backend:
+    build: ../backend
+    environment:
+      ENVIRONMENT: ${ENVIRONMENT:-local}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      DATABASE_URL: postgresql+asyncpg://agentproof:${POSTGRES_PASSWORD:?}@postgres:5432/agentproof
+      REDIS_URL: redis://:${REDIS_PASSWORD:?}@redis:6379/0
+      QDRANT_URL: http://qdrant:6333
+      QDRANT_API_KEY: ${QDRANT_API_KEY:?}
+      NEO4J_URI: bolt://neo4j:7687
+      NEO4J_USER: neo4j
+      NEO4J_PASSWORD: ${NEO4J_PASSWORD:?}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      LLM_MODEL: ${LLM_MODEL:-llama3.1}
+      CORS_ORIGINS: '["http://localhost:${FRONTEND_PORT:-3000}"]'
+      AUTH0_ISSUER: ${AUTH0_ISSUER:-}
+      AUTH0_AUDIENCE: ${AUTH0_AUDIENCE:-}
+    extra_hosts:
+      - host.docker.internal:host-gateway # reach Ollama running on the host
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.api.rule=Host(`${API_HOST:-localhost}`) && (PathPrefix(`/api`) || PathPrefix(`/health`))
+      - traefik.http.routers.api.entrypoints=web
+      - traefik.http.routers.api.middlewares=api-ratelimit,api-body-limit
+      - traefik.http.middlewares.api-ratelimit.ratelimit.average=50
+      - traefik.http.middlewares.api-ratelimit.ratelimit.burst=100
+      - traefik.http.middlewares.api-body-limit.buffering.maxRequestBodyBytes=10485760
+      - traefik.http.services.api.loadbalancer.server.port=8000
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      qdrant: { condition: service_healthy }
+      neo4j: { condition: service_healthy }
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ../frontend
+      args:
+        VITE_API_URL: http://${API_HOST:-localhost}/api
+    ports:
+      - "${FRONTEND_PORT:-3000}:8080"
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_DB: agentproof
+      POSTGRES_USER: agentproof
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?}
+    volumes:
+      # 01_init.sql then 02_seed.sql, only when the data volume is empty.
+      # Re-run with: docker compose -f docker/docker-compose.yml down -v
+      - ../database/postgresql:/docker-entrypoint-initdb.d:ro
+      - postgres-data:/var/lib/postgresql
+    ports:
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      <<: *healthcheck
+      test: ["CMD", "pg_isready", "-U", "agentproof", "-d", "agentproof"]
+    restart: unless-stopped
+
+  redis:
+    image: redis:8.8-alpine
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD:?}"]
+    environment:
+      REDISCLI_AUTH: ${REDIS_PASSWORD:?}
+    volumes:
+      - redis-data:/data
+    ports:
+      - "127.0.0.1:6379:6379"
+    healthcheck:
+      <<: *healthcheck
+      test: ["CMD", "redis-cli", "ping"]
+    restart: unless-stopped
+
+  qdrant:
+    image: qdrant/qdrant:v1.19.1
+    environment:
+      QDRANT__SERVICE__API_KEY: ${QDRANT_API_KEY:?}
+    volumes:
+      - qdrant-data:/qdrant/storage
+    ports:
+      - "127.0.0.1:6333:6333"
+    healthcheck:
+      <<: *healthcheck
+      # image ships without curl/wget; probe the port
+      test: ["CMD", "bash", "-c", ":> /dev/tcp/127.0.0.1/6333"]
+    restart: unless-stopped
+
+  neo4j:
+    image: neo4j:2026.09-community
+    environment:
+      NEO4J_AUTH: neo4j/${NEO4J_PASSWORD:?}
+      # not NEO4J_*: the image turns those into config settings
+      HEALTHCHECK_PASSWORD: ${NEO4J_PASSWORD:?}
+    volumes:
+      - neo4j-data:/data
+    ports:
+      - "127.0.0.1:7474:7474"
+      - "127.0.0.1:7687:7687"
+    healthcheck:
+      <<: *healthcheck
+      start_period: 40s
+      test: ["CMD-SHELL", "cypher-shell -u neo4j -p \"$$HEALTHCHECK_PASSWORD\" 'RETURN 1' || exit 1"]
+    restart: unless-stopped
+
+volumes:
+  postgres-data:
+  redis-data:
+  qdrant-data:
+  neo4j-data:

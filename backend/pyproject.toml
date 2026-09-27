@@ -1,7 +1,35 @@
 [project]
 name = "backend"
 version = "0.1.0"
-description = "Add your description here"
+description = "AgentProof API: trace ingestion, behavioral analysis and evaluation gates"
 readme = "README.md"
 requires-python = ">=3.13"
-dependencies = []
+dependencies = [
+    "asyncpg>=0.31.0",
+    "fastapi>=0.141.1",
+    "langchain>=1.4.2",
+    "langchain-core>=1.6.5",
+    "langchain-ollama>=1.1.0",
+    "langgraph>=1.2.12",
+    "neo4j>=6.3.1",
+    "pydantic-settings>=2.15.0",
+    "pyjwt[crypto]>=2.15.0",
+    "qdrant-client>=1.19.1",
+    "redis>=8.1.0",
+    "sqlalchemy[asyncio]>=2",
+    "uvicorn[standard]>=0.54.0",
+]
+
+[dependency-groups]
+dev = [
+    "httpx>=0.28.1",
+    "pytest>=9.1.1",
+    "ruff>=0.16.9",
+]
+
+[tool.ruff]
+src = ["src"]
+line-length = 100
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
