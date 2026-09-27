@@ -1,0 +1,51 @@
+# Secrets — commit .env.example only
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Python (backend)
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Node / Next.js (frontend)
+node_modules/
+.next/
+out/
+next-env.d.ts
+*.tsbuildinfo
+npm-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Playwright
+test-results/
+playwright-report/
+playwright/.cache/
+
+# Local datastore volumes (Postgres, Redis, Qdrant, Neo4j)
+docker/data/
+
+# Logs
+*.log
+
+# Editors / OS
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Claude Code local settings
+.claude/settings.local.json

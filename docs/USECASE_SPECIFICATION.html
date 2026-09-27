@@ -1,0 +1,1144 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="AgentProof draft use case specification: trace ingestion, evidence-backed behavioral analysis, human review, and CI regression gates.">
+<title>AgentProof — Use Case Specification</title>
+<style>
+  :root {
+    --bg:        #0d1117;
+    --panel:     #161b22;
+    --panel-2:   #1c2230;
+    --border:    #30363d;
+    --border-2:  #3d4653;
+    --text:      #e6edf3;
+    --heading:   #f0f6fc;
+    --muted:     #9aa7b4;
+    --accent:    #58a6ff;
+    --ph-fg:     #ffb454;
+    --ph-bg:     rgba(255, 180, 84, 0.12);
+    --guide-fg:  #a5d6ff;
+    --guide-bar: #388bfd;
+    --opt-fg:    #ffd591;
+    --opt-bar:   #d29922;
+    --req-fg:    #ffb4ab;
+    --req-bar:   #f85149;
+    --ok:        #7ee787;
+  }
+
+  * { box-sizing: border-box; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    margin: 0;
+    padding: 3rem 1.25rem 6rem;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-size: 16px;
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  main { max-width: 62rem; margin: 0 auto; }
+
+  h1, h2, h3, h4 { color: var(--heading); line-height: 1.25; font-weight: 600; }
+  h1 { font-size: 2rem; margin: 0 0 .35rem; letter-spacing: -0.01em; }
+  h2 {
+    font-size: 1.4rem;
+    margin: 3.25rem 0 1rem;
+    padding-bottom: .5rem;
+    border-bottom: 1px solid var(--border);
+  }
+  h3 { font-size: 1.1rem; margin: 2rem 0 .6rem; }
+  h4 { font-size: .95rem; margin: 1.5rem 0 .4rem; color: var(--muted);
+       text-transform: uppercase; letter-spacing: .08em; font-weight: 700; }
+
+  p, ul, ol { margin: 0 0 1rem; }
+  ul, ol { padding-left: 1.4rem; }
+  li { margin: .3rem 0; }
+
+  a { color: var(--accent); text-decoration: none; }
+  a:hover, a:focus { text-decoration: underline; }
+
+  code, .mono {
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    font-size: .9em;
+  }
+
+  /* --- Document header ------------------------------------------------- */
+
+  header.doc {
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--accent);
+    border-radius: 8px;
+    background: var(--panel);
+    padding: 1.5rem 1.75rem;
+  }
+  header.doc .subtitle { color: var(--muted); margin: 0; font-size: 1rem; }
+
+  /* --- Tables ----------------------------------------------------------- */
+
+  .table-wrap { overflow-x: auto; margin: 0 0 1rem; }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: .93rem;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  th, td {
+    text-align: left;
+    vertical-align: top;
+    padding: .65rem .85rem;
+    border-bottom: 1px solid var(--border);
+  }
+  th {
+    background: var(--panel-2);
+    color: var(--heading);
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  tbody tr:nth-child(even) td { background: rgba(255, 255, 255, .022); }
+  tbody tr:last-child td { border-bottom: none; }
+  table.fields th { width: 14rem; }
+
+  /* --- Marker callouts -------------------------------------------------- */
+
+  .note {
+    position: relative;
+    margin: 1rem 0 1.25rem;
+    padding: 1.5rem 1.1rem .9rem;
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--guide-bar);
+    border-radius: 6px;
+    background: var(--panel);
+    color: var(--guide-fg);
+    font-size: .9rem;
+  }
+  .note::before {
+    content: attr(data-marker);
+    position: absolute;
+    top: .5rem;
+    left: 1.1rem;
+    font-size: .68rem;
+    font-weight: 700;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    opacity: .85;
+  }
+  .note :last-child { margin-bottom: 0; }
+
+  /* --- Positioning statement -------------------------------------------- */
+
+  blockquote.positioning {
+    margin: 1.5rem 0;
+    padding: 1.25rem 1.5rem;
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--ok);
+    border-radius: 6px;
+    background: var(--panel);
+    font-size: 1.05rem;
+    line-height: 1.7;
+  }
+  blockquote.positioning .label {
+    display: block;
+    margin-bottom: .5rem;
+    color: var(--muted);
+    font-size: .68rem;
+    font-weight: 700;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+  }
+
+  /* --- Use case blocks --------------------------------------------------- */
+
+  section.usecase {
+    margin: 2rem 0;
+    border: 1px solid var(--border-2);
+    border-radius: 8px;
+    background: var(--panel);
+    padding: 0 1.5rem 1.5rem;
+  }
+  section.usecase > h3 {
+    margin: 0 -1.5rem 0;
+    padding: 1rem 1.5rem;
+    background: var(--panel-2);
+    border-bottom: 1px solid var(--border);
+    border-radius: 8px 8px 0 0;
+    font-size: 1.15rem;
+  }
+  .uc-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .5rem 1.5rem;
+    margin: 0 -1.5rem 1rem;
+    padding: .6rem 1.5rem;
+    border-bottom: 1px solid var(--border);
+    background: rgba(255, 255, 255, .02);
+    font-size: .85rem;
+    color: var(--muted);
+  }
+  .uc-meta b { color: var(--text); font-weight: 600; }
+
+  .flow { counter-reset: step; list-style: none; padding-left: 0; }
+  .flow > li {
+    counter-increment: step;
+    position: relative;
+    padding-left: 2.6rem;
+    margin: .5rem 0;
+  }
+  .flow > li::before {
+    content: counter(step);
+    position: absolute;
+    left: 0;
+    top: .15rem;
+    width: 1.8rem;
+    height: 1.8rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--border-2);
+    border-radius: 50%;
+    background: var(--panel-2);
+    color: var(--muted);
+    font-size: .78rem;
+    font-weight: 700;
+  }
+  .flow .who {
+    color: var(--muted);
+    font-size: .72rem;
+    font-weight: 700;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    display: block;
+  }
+
+  .altflow {
+    margin: 1rem 0;
+    padding: .9rem 1.1rem;
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--opt-bar);
+    border-radius: 6px;
+    background: rgba(255, 255, 255, .02);
+  }
+  .altflow > h5 {
+    margin: 0 0 .5rem;
+    font-size: .95rem;
+    color: var(--heading);
+  }
+  .altflow .cond { color: var(--muted); font-size: .88rem; margin-bottom: .5rem; }
+
+  /* --- Contents ---------------------------------------------------------- */
+
+  nav.toc ol { columns: 2; column-gap: 2.5rem; padding-left: 1.4rem; }
+  nav.toc li { break-inside: avoid; }
+
+  hr { border: none; border-top: 1px solid var(--border); margin: 2.5rem 0; }
+
+  /* --- Small screens ------------------------------------------------------ */
+
+  @media (max-width: 700px) {
+    body { padding: 1.5rem .85rem 4rem; font-size: 15px; }
+    nav.toc ol { columns: 1; }
+    section.usecase { padding: 0 1rem 1rem; }
+    section.usecase > h3, .uc-meta { margin-left: -1rem; margin-right: -1rem; padding-left: 1rem; padding-right: 1rem; }
+    table.fields th { width: auto; }
+  }
+
+  /* --- Print / PDF -------------------------------------------------------- */
+
+  @media print {
+    :root {
+      --bg: #ffffff; --panel: #ffffff; --panel-2: #f2f2f2;
+      --border: #b9b9b9; --border-2: #999999;
+      --text: #000000; --heading: #000000; --muted: #444444;
+      --accent: #0b4fa8; --ph-fg: #8a5300; --ph-bg: #fdf3e3;
+      --guide-fg: #333333; --opt-fg: #333333; --req-fg: #333333;
+    }
+    body { padding: 0; font-size: 10.5pt; }
+    a { color: #000; text-decoration: underline; }
+    a[href^="http"]::after { content: " (" attr(href) ")"; font-size: .85em; color: #444; }
+    h2 { page-break-after: avoid; }
+    @page { size: A4; margin: 16mm; }
+    main { max-width: none; }
+    section.usecase, table { break-inside: auto; }
+    h3, h4, h5, .uc-meta { break-after: avoid; }
+    tr, .altflow, .note { break-inside: avoid; }
+    thead { display: table-header-group; }
+    .table-wrap { overflow: visible; }
+    th { white-space: normal; }
+    p, li { orphans: 3; widows: 3; }
+    tbody tr:nth-child(even) td { background: #f7f7f7; }
+  }
+
+  :target { scroll-margin-top: 1rem; }
+  a:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+  td, p, li { overflow-wrap: anywhere; }
+  .table-wrap:focus-visible { outline: 2px solid var(--accent); }
+  @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+</style>
+</head>
+<body>
+<main>
+<header class="doc">
+  <h1>AgentProof — Use Case Specification</h1>
+  <p class="subtitle">AP-UC-001 · Version 0.1 · Draft · 27 September 2026</p>
+</header>
+<div class="note" data-marker="DOCUMENT STATUS">
+  <p>This document specifies intended product behavior. It does not certify an implemented feature, working API, deployment, or measured service level. It is based on the project README and the use case specification dated 27 September 2026.</p>
+</div>
+<h2 id="document-control">1. Document control</h2>
+<div class="table-wrap" role="region" aria-label="Document control" tabindex="0">
+<table>
+<thead><tr><th scope="col">Field</th><th scope="col">Value</th></tr></thead>
+<tbody>
+<tr><td>Document ID / version</td><td>AP-UC-001 / 0.1 (identifiers assigned to this HTML draft)</td></tr>
+<tr><td>Project</td><td>AgentProof</td></tr>
+<tr><td>Status</td><td>Draft; no approval recorded</td></tr>
+<tr><td>Prepared by</td><td>Codex, adapting the supplied project documents at the requester’s direction</td></tr>
+<tr><td>Accountable owner / sponsor</td><td>Not assigned in the source materials</td></tr>
+<tr><td>Created / updated</td><td>27 September 2026</td></tr>
+<tr><td>Next review</td><td>Before first-slice acceptance; calendar date not scheduled</td></tr>
+<tr><td>Classification / distribution</td><td>No classification or distribution policy supplied; intended readers are project, engineering, review, and operations stakeholders</td></tr>
+<tr><td>Local source documents</td><td><a href="../README.md">README.md</a> and <a href="../USECASE_SPECIFICATION.md">USECASE_SPECIFICATION.md</a>; no remote source-of-record URL supplied</td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="revision-history">1.1 Revision history</h3>
+<div class="table-wrap" role="region" aria-label="Revision history" tabindex="0">
+<table>
+<thead><tr><th scope="col">Version</th><th scope="col">Date</th><th scope="col">Change</th><th scope="col">Approval</th></tr></thead>
+<tbody>
+<tr><td>0.1</td><td>2026-09-27</td><td>Populate the HTML template with all 13 AgentProof use cases, derived requirements, traceability, and release acceptance.</td><td>Not approved</td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="approvals">1.2 Approvals</h3>
+<p>No approver names, contacts, signatures, or approval dates were supplied. The accountable project owner must designate approvers before this draft becomes a binding baseline. Proposed review responsibilities appear in section 6.</p>
+<h2 id="contents">2. Contents</h2>
+<nav class="toc" aria-label="Document contents"><ol>
+<li><a href="#document-control">Document control</a></li>
+<li><a href="#contents">Contents</a></li>
+<li><a href="#overview">Overview</a></li>
+<li><a href="#goals">Goals</a></li>
+<li><a href="#out-of-scope">Out of scope</a></li>
+<li><a href="#stakeholders">Stakeholders</a></li>
+<li><a href="#assumptions-constraints">Assumptions and constraints</a></li>
+<li><a href="#functional-requirements">Functional requirements</a></li>
+<li><a href="#nonfunctional-requirements">Non-functional requirements</a></li>
+<li><a href="#use-cases">Use case specifications</a></li>
+<li><a href="#traceability">Traceability matrix</a></li>
+<li><a href="#glossary">Glossary</a></li>
+<li><a href="#references">References</a></li>
+</ol></nav>
+<h2 id="overview">3. Overview</h2>
+<p>An AI agent can complete a task while skipping approval, choosing the wrong tool, repeating retrievals, or relying on unsupported evidence. Evaluating only the final answer can miss these execution failures.</p>
+<p>AgentProof collects execution traces, checks tool use and policies, compares actual actions with expected workflows, and links confirmed findings to inspectable evidence. Developers investigate individual runs; reviewers assess findings; evaluation engineers and CI systems compare versions before a release.</p>
+<p>Outcome success and behavioral correctness remain separate. The initial reference domain is customer support: a successful refund can still violate an approval requirement. Other domains need their own tool specifications, policies, and evaluation data.</p>
+<blockquote class="positioning"><span class="label">Positioning statement</span>For teams releasing AI agents, AgentProof is a behavioral evaluation system that connects execution failures to validated evidence and release decisions. It extends final-answer evaluation with trace-level policy, workflow, and tool-use checks.</blockquote>
+<h2 id="goals">4. Goals</h2>
+<p>These acceptance goals are derived from the supplied first-slice criteria. The milestone is the first complete local demonstration; no delivery date or measured business baseline has been supplied.</p>
+<div class="table-wrap" role="region" aria-label="Product goals" tabindex="0">
+<table>
+<thead><tr><th scope="col">ID</th><th scope="col">Goal</th><th scope="col">Measure / target</th><th scope="col">When</th></tr></thead>
+<tbody>
+<tr><td>G-01</td><td>Make behavioral failures explainable</td><td>All confirmed findings in the acceptance cases resolve to authorized evidence and exact source versions.</td><td>First complete slice; date unassigned</td></tr>
+<tr><td>G-02</td><td>Detect the initial failure classes</td><td>Controlled positive and negative scenarios cover all five classes: WRONG_TOOL, INVALID_ARGUMENT, ACTION_LOOP, RETRIEVAL_LOOP, and POLICY_VIOLATION.</td><td>First complete slice; date unassigned</td></tr>
+<tr><td>G-03</td><td>Prevent promotion based on an untrustworthy evaluation</td><td>The gate blocks promotion for FAIL, ERROR, and pending work; mandatory policy limits cannot be offset by task success.</td><td>First complete slice; date unassigned</td></tr>
+<tr><td>G-04</td><td>Preserve accepted evidence and historical decisions</td><td>Recovery scenarios lose no accepted work; updates preserve original artifact versions and review history.</td><td>First complete slice; date unassigned</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="out-of-scope">5. Out of scope</h2>
+<div class="table-wrap" role="region" aria-label="Out of scope" tabindex="0">
+<table>
+<thead><tr><th scope="col">Excluded capability</th><th scope="col">Reason / boundary</th></tr></thead>
+<tbody>
+<tr><td>Hosting or executing arbitrary customer agent code</td><td>Customer CI executes cases in its own environment. AgentProof evaluates the resulting traces.</td></tr>
+<tr><td>Replacing telemetry storage or a CI service</td><td>AgentProof supplies behavioral investigation and an evaluation gate within existing workflows.</td></tr>
+<tr><td>Eliminating human review of ambiguous findings</td><td>Insufficient evidence remains explicit; reviewers can annotate findings.</td></tr>
+<tr><td>Automatically rewriting prompts or agent code</td><td>The initial product reports and recommends; it does not repair agent implementations.</td></tr>
+<tr><td>Formal proof of unrestricted natural-language behavior</td><td>Semantic judgments remain evidence-dependent and carry uncertainty.</td></tr>
+<tr><td>Fine-tuning LLMs</td><td>Not part of this design.</td></tr>
+<tr><td>Retroactively stopping an already executed tool action</td><td>Analysis reports the observed action and risk; it cannot undo execution.</td></tr>
+<tr><td>Production guarantees or a released CLI</td><td>Service levels, operating procedures, and CLI commands are proposals, not verified capabilities.</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="stakeholders">6. Stakeholders</h2>
+<p>Roles below identify required perspectives, not appointed people or confirmed decision authority. Individual owners and contact channels are not supplied.</p>
+<div class="table-wrap" role="region" aria-label="Stakeholders" tabindex="0">
+<table>
+<thead><tr><th scope="col">Stakeholder role</th><th scope="col">Interest</th><th scope="col">Proposed review responsibility</th></tr></thead>
+<tbody>
+<tr><td>Project owner / sponsor</td><td>Product scope and acceptance</td><td>Approve scope after appointment</td></tr>
+<tr><td>Agent developer</td><td>Actionable trace investigation</td><td>Review telemetry and investigation flows</td></tr>
+<tr><td>Project administrator</td><td>Membership and artifact governance</td><td>Review authorization and version management</td></tr>
+<tr><td>Policy owner</td><td>Correct policy and workflow interpretation</td><td>Review rule applicability and reference scenarios</td></tr>
+<tr><td>Reviewer</td><td>Evidence quality and review history</td><td>Review finding decisions and auditability</td></tr>
+<tr><td>Evaluation engineer</td><td>Comparable datasets and dependable gates</td><td>Review metrics, baselines, and gate requirements</td></tr>
+<tr><td>Operations / security / data governance roles</td><td>Recovery, isolation, data protection, and support</td><td>Review controls before real customer data or shared operation</td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="actors">6.1 Actors</h3>
+<div class="table-wrap" role="region" aria-label="Actors" tabindex="0">
+<table>
+<thead><tr><th scope="col">Actor</th><th scope="col">Role</th></tr></thead>
+<tbody>
+<tr><td>Agent developer</td><td>Integrates telemetry, investigates failures, compares agent versions.</td></tr>
+<tr><td>Project administrator</td><td>Manages project membership and versioned evaluation artifacts.</td></tr>
+<tr><td>Policy owner</td><td>Defines operational rules and expected workflows.</td></tr>
+<tr><td>Reviewer</td><td>Accepts, dismisses, or requests more evidence for a finding.</td></tr>
+<tr><td>Evaluation engineer</td><td>Curates test cases, baselines, and regression gates.</td></tr>
+<tr><td>Customer agent / OTel Collector</td><td>Exports execution telemetry using a scoped machine identity.</td></tr>
+<tr><td>CI system</td><td>Submits evaluation traces and consumes a gate decision.</td></tr>
+<tr><td>Analysis worker</td><td>Executes asynchronous checks and records results; it is an internal actor.</td></tr>
+<tr><td>Human user</td><td>An authenticated person acting in one or more of the project roles above.</td></tr>
+<tr><td>Operations worker</td><td>Internal actor performing retention, deletion, and projection recovery jobs.</td></tr>
+<tr><td>Auth0</td><td>External identity provider issuing human and machine credentials.</td></tr>
+</tbody>
+</table>
+</div>
+<p>Actor counts and concurrency are not specified. Analysis and operations workers are internal actors retained from the source catalog; they represent automated behavior rather than independent user roles.</p>
+<h2 id="assumptions-constraints">7. Assumptions and constraints</h2>
+<h3>7.1 Assumptions</h3>
+<div class="table-wrap" role="region" aria-label="Assumptions" tabindex="0">
+<table>
+<thead><tr><th scope="col">ID</th><th scope="col">Assumption</th><th scope="col">Impact if false</th><th scope="col">Validation responsibility</th></tr></thead>
+<tbody>
+<tr><td>A-01</td><td>Customer CI can execute cases and export supported telemetry with stable identifiers.</td><td>Missing cases or spans make evaluation incomplete.</td><td>Agent developer / evaluation engineer; unverified</td></tr>
+<tr><td>A-02</td><td>Applicable tool, policy, workflow, and dataset versions are available.</td><td>Affected checks are inconclusive or erroneous.</td><td>Project administrator / policy owner; unverified</td></tr>
+<tr><td>A-03</td><td>Trace completion and relevant action intervals can be established explicitly.</td><td>Absence of an approval cannot be asserted reliably.</td><td>Agent developer; unverified</td></tr>
+<tr><td>A-04</td><td>A deployment defines data classification, redaction, retention, and authorized roles before ingesting real data.</td><td>The deployment is not ready for that data.</td><td>Security / operations roles; unassigned</td></tr>
+</tbody>
+</table>
+</div>
+<h3>7.2 Constraints</h3>
+<div class="table-wrap" role="region" aria-label="Constraints" tabindex="0">
+<table>
+<thead><tr><th scope="col">ID</th><th scope="col">Constraint</th><th scope="col">Source</th></tr></thead>
+<tbody>
+<tr><td>C-01</td><td>PostgreSQL is authoritative; Qdrant and Neo4j projections must be rebuildable from versioned source records.</td><td>README: Architecture</td></tr>
+<tr><td>C-02</td><td>Auth0 provides identity; Traefik Hub performs edge checks; the application enforces project and resource authorization.</td><td>README: Security; UC-01</td></tr>
+<tr><td>C-03</td><td>Redis coordinates asynchronous work; accepted work requires durable delivery recovery and idempotent retries.</td><td>README: Analysis and evidence; UC-03</td></tr>
+<tr><td>C-04</td><td>LangGraph coordinates bounded semantic critics. An independent validator checks evidence before confirmation.</td><td>README: Analysis and evidence; UC-08</td></tr>
+<tr><td>C-05</td><td>Initial deployment and validation are planned locally; shared-service ownership, dates, budgets, and capacity limits remain undecided.</td><td>README: Getting started, Service levels, Governance</td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="open-decisions">7.3 Open decisions</h3>
+<div class="table-wrap" role="region" aria-label="Open decisions" tabindex="0">
+<table>
+<thead><tr><th scope="col">Decision</th><th scope="col">Proposed responsible role</th><th scope="col">Required milestone</th></tr></thead>
+<tbody>
+<tr><td>Appoint document owner, sponsor, approvers, and support contacts.</td><td>Project owner; not appointed</td><td>Before approval or shared-service operation</td></tr>
+<tr><td>Specify trace completion contract, ingestion limits, and timeout budgets.</td><td>Engineering / evaluation roles; not appointed</td><td>Before implementation acceptance</td></tr>
+<tr><td>Pin gate thresholds, permitted baseline differences, review eligibility rules, and zero-baseline handling.</td><td>Evaluation engineer / policy owner</td><td>Before accepting a release gate</td></tr>
+<tr><td>Choose retention durations, storage region, applicable compliance obligations, raw-data rules, and any hold policy.</td><td>Security / data governance roles; not appointed</td><td>Before ingesting real customer data</td></tr>
+<tr><td>Define normal-trace size, test hardware, concurrency, capacity, accessibility acceptance, and production SLOs.</td><td>Engineering / operations roles; not appointed</td><td>Before validating targets or production rollout</td></tr>
+</tbody>
+</table>
+</div>
+<p>Calendar due dates are not established. These milestone boundaries make the unresolved decisions visible without inventing commitments.</p>
+<h2 id="functional-requirements">8. Functional requirements</h2>
+<p>FR identifiers are assigned in this HTML draft to trace the existing use cases. “Must” denotes the required behavior within each use case’s stated initial scope; UC-07’s later semantic expansion is not promoted into the initial release.</p>
+<div class="table-wrap" role="region" aria-label="Functional requirements" tabindex="0">
+<table>
+<thead><tr><th scope="col">ID</th><th scope="col">Requirement</th><th scope="col">Priority</th><th scope="col">Use case</th></tr></thead>
+<tbody>
+<tr><td><span id="fr-01">FR-01</span></td><td>The system must authorize each protected operation against identity, scope, project membership, and resource ownership.</td><td>Must within stated scope</td><td><a href="#uc-01">UC-01</a></td></tr>
+<tr><td><span id="fr-02">FR-02</span></td><td>The system must publish immutable agent, tool, policy, and workflow versions that evaluations can pin.</td><td>Must within stated scope</td><td><a href="#uc-02">UC-02</a></td></tr>
+<tr><td><span id="fr-03">FR-03</span></td><td>The system must accept validated, redacted telemetry as an idempotent canonical trace with completeness and durable analysis status.</td><td>Must within stated scope</td><td><a href="#uc-03">UC-03</a></td></tr>
+<tr><td><span id="fr-04">FR-04</span></td><td>The system must let developers inspect ordered spans, separate result states, and a finding’s source evidence.</td><td>Must within stated scope</td><td><a href="#uc-04">UC-04</a></td></tr>
+<tr><td><span id="fr-05">FR-05</span></td><td>The system must distinguish invalid arguments from wrong tool choices using versioned specifications and validated evidence.</td><td>Must within stated scope</td><td><a href="#uc-05">UC-05</a></td></tr>
+<tr><td><span id="fr-06">FR-06</span></td><td>The system must verify applicable policies and workflow prerequisites without asserting absence from incomplete telemetry.</td><td>Must within stated scope</td><td><a href="#uc-06">UC-06</a></td></tr>
+<tr><td><span id="fr-07">FR-07</span></td><td>The system must detect repeated or inefficient actions while accounting for permitted retries, progress, and missing usage data.</td><td>Must within stated scope</td><td><a href="#uc-07">UC-07</a></td></tr>
+<tr><td><span id="fr-08">FR-08</span></td><td>The system must validate semantic claims before confirmation and distinguish facts, conclusions, judgments, and causal hypotheses in an RCA.</td><td>Must within stated scope</td><td><a href="#uc-08">UC-08</a></td></tr>
+<tr><td><span id="fr-09">FR-09</span></td><td>The system must preserve human review decisions as auditable annotations separate from the original findings.</td><td>Must within stated scope</td><td><a href="#uc-09">UC-09</a></td></tr>
+<tr><td><span id="fr-10">FR-10</span></td><td>The system must evaluate externally executed cases against a pinned expected case set and expose complete metrics or explicit errors.</td><td>Must within stated scope</td><td><a href="#uc-10">UC-10</a></td></tr>
+<tr><td><span id="fr-11">FR-11</span></td><td>The system must compare compatible candidate and baseline runs with traceable absolute and applicable relative changes.</td><td>Must within stated scope</td><td><a href="#uc-11">UC-11</a></td></tr>
+<tr><td><span id="fr-12">FR-12</span></td><td>The system must expose PASS, FAIL, ERROR, and a distinct pending state so CI promotes only on a trustworthy PASS.</td><td>Must within stated scope</td><td><a href="#uc-12">UC-12</a></td></tr>
+<tr><td><span id="fr-13">FR-13</span></td><td>The system must enforce sensitive-data access and propagate authorized retention or deletion across source records and projections.</td><td>Must within stated scope</td><td><a href="#uc-13">UC-13</a></td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="business-rules">8.1 Business rules</h3>
+<div class="table-wrap" role="region" aria-label="Business rules" tabindex="0">
+<table>
+<thead><tr><th scope="col">ID</th><th scope="col">Rule</th><th scope="col">Applies to</th></tr></thead>
+<tbody>
+<tr><td><span id="br-01">BR-01</span></td><td><strong>Evidence first:</strong> A confirmed finding references resolvable source IDs and the validation result. Model confidence alone never establishes a fact.</td><td>All applicable use cases</td></tr>
+<tr><td><span id="br-02">BR-02</span></td><td><strong>Completeness-aware reasoning:</strong> Absence claims such as “approval was omitted” require a sufficiently complete trace for the relevant action interval.</td><td>All applicable use cases</td></tr>
+<tr><td><span id="br-03">BR-03</span></td><td><strong>Tenant boundaries:</strong> Every API query and vector/graph traversal is constrained by project identity and source version; metadata filters are checked again at the authoritative record.</td><td>All applicable use cases</td></tr>
+<tr><td><span id="br-04">BR-04</span></td><td><strong>Version pinning:</strong> A run records agent, dataset, policy, workflow, evaluator, and gate versions. Re-evaluation is a new result, not a silent edit to history.</td><td>All applicable use cases</td></tr>
+<tr><td><span id="br-05">BR-05</span></td><td><strong>Independent outcome and behavior:</strong> A task can succeed while behavior fails, or fail without a policy violation.</td><td>All applicable use cases</td></tr>
+<tr><td><span id="br-06">BR-06</span></td><td><strong>Failure semantics:</strong> Operational failure and insufficient evidence produce explicit incomplete or <code>ERROR</code> states. They are never counted as successful agent behavior.</td><td>All applicable use cases</td></tr>
+<tr><td><span id="br-07">BR-07</span></td><td><strong>Asynchronous visibility:</strong> The UI and API expose accepted, queued, analyzing, completed, partial, and error states rather than implying immediate semantic analysis after ingestion.</td><td>All applicable use cases</td></tr>
+<tr><td><span id="br-08">BR-08</span></td><td><strong>Human review:</strong> Reviewer annotations preserve original detector outputs and must follow a defined rule before affecting a release gate.</td><td>All applicable use cases</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="nonfunctional-requirements">9. Non-functional requirements</h2>
+<p>The first three targets come from the README and are not measured guarantees. The remaining criteria operationalize source requirements for acceptance testing; they are not claims about a deployed system. Availability, capacity, support hours, and compliance regimes have not been agreed.</p>
+<div class="table-wrap" role="region" aria-label="Non-functional requirements" tabindex="0">
+<table>
+<thead><tr><th scope="col">ID</th><th scope="col">Category</th><th scope="col">Target</th><th scope="col">Verification / qualification</th></tr></thead>
+<tbody>
+<tr><td><span id="nfr-01">NFR-01</span></td><td>Ingestion performance</td><td>Acknowledgement p95 &lt; 500 ms.</td><td>Unvalidated engineering target; benchmark with a declared payload size and concurrency.</td></tr>
+<tr><td><span id="nfr-02">NFR-02</span></td><td>Analysis performance</td><td>Deterministic analysis p95 &lt; 2 seconds for a normal trace.</td><td>Unvalidated engineering target; normal-trace size and test environment must be defined.</td></tr>
+<tr><td><span id="nfr-03">NFR-03</span></td><td>Explorer performance</td><td>Trace Explorer initial load p95 &lt; 2 seconds.</td><td>Unvalidated engineering target; browser benchmark with a declared trace size and environment.</td></tr>
+<tr><td><span id="nfr-04">NFR-04</span></td><td>Authorization</td><td>Zero unauthorized disclosures or writes in cross-project and insufficient-scope acceptance tests.</td><td>Human and M2M contract/integration tests, including direct resource access and filtered retrieval.</td></tr>
+<tr><td><span id="nfr-05">NFR-05</span></td><td>Recovery and idempotency</td><td>Zero accepted traces silently lost and no duplicated findings in queue-outage, duplicate-delivery, and worker-restart scenarios.</td><td>Fault-injection integration checks across persist, publish, and worker boundaries.</td></tr>
+<tr><td><span id="nfr-06">NFR-06</span></td><td>Evidence and lineage</td><td>Every confirmed acceptance finding resolves to authorized evidence and exact source versions; deterministic results agree for the same pinned inputs.</td><td>Evidence-resolution and replay tests. External LLM output is not promised to be byte-for-byte reproducible.</td></tr>
+<tr><td><span id="nfr-07">NFR-07</span></td><td>Data protection</td><td>Configured sensitive fields never appear in normal persisted views; every privileged raw read is audited; erased data never reappears in rebuild tests.</td><td>Redaction, access, deletion-propagation, and index-rebuild integration tests.</td></tr>
+<tr><td><span id="nfr-08">NFR-08</span></td><td>Trustworthy gate behavior</td><td>Zero automatic promotions for FAIL, ERROR, or pending in controlled CI scenarios.</td><td>End-to-end tests covering missing cases, required dependency failures, incompatible baselines, and breached policy limits.</td></tr>
+<tr><td><span id="nfr-09">NFR-09</span></td><td>Auditability</td><td>Every review annotation and gate decision retains identity where applicable, timestamp, relevant versions, and inspectable result references.</td><td>Inspect review and gate records after updates and concurrent-review conflicts.</td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="data-handling">9.1 Data handling</h3>
+<div class="table-wrap" role="region" aria-label="Data handling" tabindex="0">
+<table>
+<thead><tr><th scope="col">Data category</th><th scope="col">Stored / exposed</th><th scope="col">Retention and access</th></tr></thead>
+<tbody>
+<tr><td>Messages, tool inputs/outputs, and retrieved text</td><td>Canonical redacted telemetry and authorized evidence; may contain personal data.</td><td>Project retention duration is not specified. Apply pre-persistence redaction; restrict raw access and audit privileged reads.</td></tr>
+<tr><td>Credentials and configured sensitive fields</td><td>Redacted before persistence; never included in standard views or critic packages.</td><td>No secret values in logs or audit records. Any permitted diagnostic raw-data handling needs an explicit deployment policy.</td></tr>
+<tr><td>Customer-support order and refund data</td><td>Relevant identifiers, amounts, and observed tool results required for evaluation.</td><td>Project-scoped access and configured retention. The source does not establish payment-card or health-data storage.</td></tr>
+<tr><td>Embeddings, graph relationships, and caches</td><td>Derived representations linked to versioned source records.</td><td>Deletion or invalidation propagates durably; pending propagation is visible and deleted material cannot be reindexed.</td></tr>
+<tr><td>Reviews, evaluation reports, and audit metadata</td><td>Decisions, actor identifiers, timestamps, lineage, and diagnostics.</td><td>Retain according to the chosen policy without re-exposing erased content; exact duration is undecided.</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="use-cases">10. Use case specifications</h2>
+<h3 id="uc-index">10.1 Use case index</h3>
+<div class="table-wrap" role="region" aria-label="Use case index" tabindex="0">
+<table>
+<thead><tr><th scope="col">ID</th><th scope="col">Use case</th><th scope="col">Primary actor</th><th scope="col">Initial scope</th><th scope="col">Requirement</th></tr></thead>
+<tbody>
+<tr><td><a href="#uc-01">UC-01</a></td><td>Enter a project and authorize access</td><td>Human user / CI client</td><td>Foundation</td><td><a href="#fr-01">FR-01</a></td></tr>
+<tr><td><a href="#uc-02">UC-02</a></td><td>Register an agent and versioned evaluation context</td><td>Project administrator</td><td>Foundation</td><td><a href="#fr-02">FR-02</a></td></tr>
+<tr><td><a href="#uc-03">UC-03</a></td><td>Ingest and normalize an agent trace</td><td>Agent / OTel Collector</td><td>MVP</td><td><a href="#fr-03">FR-03</a></td></tr>
+<tr><td><a href="#uc-04">UC-04</a></td><td>Inspect a trace and its execution trajectory</td><td>Agent developer</td><td>MVP</td><td><a href="#fr-04">FR-04</a></td></tr>
+<tr><td><a href="#uc-05">UC-05</a></td><td>Detect tool misuse and invalid arguments</td><td>Analysis worker</td><td>MVP</td><td><a href="#fr-05">FR-05</a></td></tr>
+<tr><td><a href="#uc-06">UC-06</a></td><td>Verify policies and expected trajectories</td><td>Policy owner / analysis worker</td><td>MVP</td><td><a href="#fr-06">FR-06</a></td></tr>
+<tr><td><a href="#uc-07">UC-07</a></td><td>Detect loops and inefficient behavior</td><td>Analysis worker</td><td>MVP, with later semantic expansion</td><td><a href="#fr-07">FR-07</a></td></tr>
+<tr><td><a href="#uc-08">UC-08</a></td><td>Validate semantic judgments and generate an RCA</td><td>Analysis worker / reviewer</td><td>MVP</td><td><a href="#fr-08">FR-08</a></td></tr>
+<tr><td><a href="#uc-09">UC-09</a></td><td>Review a finding and its evidence</td><td>Reviewer</td><td>MVP</td><td><a href="#fr-09">FR-09</a></td></tr>
+<tr><td><a href="#uc-10">UC-10</a></td><td>Evaluate an agent version on an external test run</td><td>Evaluation engineer / CI</td><td>MVP</td><td><a href="#fr-10">FR-10</a></td></tr>
+<tr><td><a href="#uc-11">UC-11</a></td><td>Compare a candidate with a baseline</td><td>Evaluation engineer</td><td>MVP</td><td><a href="#fr-11">FR-11</a></td></tr>
+<tr><td><a href="#uc-12">UC-12</a></td><td>Enforce a CI regression gate</td><td>CI system</td><td>MVP</td><td><a href="#fr-12">FR-12</a></td></tr>
+<tr><td><a href="#uc-13">UC-13</a></td><td>Govern sensitive trace data and derived projections</td><td>Project administrator</td><td>MVP controls; operations mature later</td><td><a href="#fr-13">FR-13</a></td></tr>
+</tbody>
+</table>
+</div>
+<p>All use cases are Draft. Detailed goals, actors, preconditions, triggers, main flows, source exceptions, and acceptance criteria preserve the supplied specification. Failure postconditions, branch dispositions, and cancellation notes clarify those flows for this HTML draft; they do not introduce a cancellation API. Frequency is event-driven by each stated trigger; volumes are not specified.</p>
+<section class="usecase" id="uc-01" aria-labelledby="uc-01-title">
+<h3 id="uc-01-title">UC-01 — Enter a project and authorize access</h3>
+<div class="uc-meta"><span><b>Status:</b> Draft</span><span><b>Priority:</b> Must within stated scope</span><span><b>Scope:</b> Foundation</span><span><b>Requirements:</b> <a href="#fr-01">FR-01</a>, <a href="#nfr-04">NFR-04</a>, <a href="#nfr-07">NFR-07</a>, <a href="#nfr-09">NFR-09</a></span></div>
+<h4>Description</h4>
+<p>Give a person or machine only the project resources and operations it is entitled to use.</p>
+<h4>Actors</h4>
+<p>Human user, CI client, collector. <strong>Supporting actor:</strong> Project administrator.</p>
+<h4>Preconditions</h4>
+<p>A project exists; the identity is registered and mapped to that project. A human can complete OIDC sign-in; a machine can obtain a client-credentials token.</p>
+<h4>Trigger</h4>
+<p>An actor requests a protected API operation.</p>
+<h4>Postconditions</h4>
+<ul>
+<li><strong>On success:</strong> No cross-project resource data is disclosed; an authorized operation may proceed.</li>
+<li><strong>On failure:</strong> The protected operation is denied; no cross-project data is disclosed.</li>
+</ul>
+<h4>Main flow</h4>
+<ol class="flow">
+<li>Auth0 issues an access token for the intended API audience with appropriate scopes.</li>
+<li>Traefik Hub validates token and coarse route or scope requirements.</li>
+<li>FastAPI resolves the actor and project context and checks operation-specific authorization.</li>
+<li>For resource access, FastAPI verifies the resource belongs to the project and the actor is allowed to access that project.</li>
+<li>The system performs the operation and records an audit event where required.</li>
+</ol>
+<h4>Alternative flows and exceptions</h4>
+<div class="altflow"><h5>UC-01-A1 — Cancellation or interruption</h5>
+<p>Before token issuance or submission of the protected request, the actor may abandon the flow. No requested operation occurs. Abandoning a client does not undo an operation already authorized and performed.</p>
+</div>
+<div class="altflow"><h5>UC-01-E1 — Exceptions and recovery</h5>
+<p class="cond"><b>Branch:</b> Steps 1–4 of the main flow, as applicable.</p>
+<p>An expired or invalid token is rejected. A valid token with insufficient scope or incorrect project membership is denied. A request for a trace in another project is denied even if the token includes <code>traces:read</code>. Missing identity infrastructure prevents protected access; cached authorization must not silently grant new permissions.</p>
+<p><strong>Disposition:</strong> Reject invalid or expired tokens and deny insufficient scope or project access. Missing identity infrastructure ends protected access without granting new permissions.</p>
+</div>
+<h4 id="ac-01">Acceptance criteria — AC-01</h4>
+<p>Human and machine identities have distinct flows; project ownership is checked at the application boundary; M2M clients can be scoped to ingestion or evaluation without <code>projects:admin</code>; denials are auditable without leaking sensitive resource contents.</p>
+<h4>Notes</h4>
+<p>Shared rules: <a href="#br-03">BR-03</a>, <a href="#br-06">BR-06</a>. Unresolved configuration and ownership decisions are tracked in <a href="#open-decisions">section 7.3</a>.</p>
+</section>
+<section class="usecase" id="uc-02" aria-labelledby="uc-02-title">
+<h3 id="uc-02-title">UC-02 — Register an agent and versioned evaluation context</h3>
+<div class="uc-meta"><span><b>Status:</b> Draft</span><span><b>Priority:</b> Must within stated scope</span><span><b>Scope:</b> Foundation</span><span><b>Requirements:</b> <a href="#fr-02">FR-02</a>, <a href="#nfr-04">NFR-04</a>, <a href="#nfr-06">NFR-06</a></span></div>
+<h4>Description</h4>
+<p>Define the agent, tools, policies, and expected workflows needed to interpret its runs.</p>
+<h4>Actors</h4>
+<p>Project administrator and policy owner.</p>
+<h4>Preconditions</h4>
+<p>The actors have project administration or policy-writing permissions.</p>
+<h4>Trigger</h4>
+<p>The team onboards an agent or publishes a change to its behavior contract.</p>
+<h4>Postconditions</h4>
+<ul>
+<li><strong>On success:</strong> New evaluations can pin exact agent, policy, workflow, and tool-specification versions; historical runs keep their original versions.</li>
+<li><strong>On failure:</strong> Invalid context is not published. Existing versions remain unchanged; projection failures remain visible.</li>
+</ul>
+<h4>Main flow</h4>
+<ol class="flow">
+<li>The administrator creates an agent identity and registers an agent version, including code or prompt revision metadata where available.</li>
+<li>The policy owner publishes versioned policy clauses and identifies the side effects and sensitivity of each tool.</li>
+<li>The owner defines required, optional, conditional, and forbidden workflow transitions.</li>
+<li>The system validates references between policies, tools, and workflow steps; it records immutable versions in PostgreSQL.</li>
+<li>Background jobs update scoped Qdrant indexes and Neo4j relationship projections; the source version remains available to evaluations independently of index state.</li>
+</ol>
+<h4>Alternative flows and exceptions</h4>
+<div class="altflow"><h5>UC-02-A1 — Cancellation or interruption</h5>
+<p>Before publication at step 4, the actor may abandon changes without creating a published version. A published artifact remains immutable; a correction requires a new version.</p>
+</div>
+<div class="altflow"><h5>UC-02-E1 — Exceptions and recovery</h5>
+<p class="cond"><b>Branch:</b> Steps 4–5 of the main flow, as applicable.</p>
+<p>An invalid tool reference or contradictory workflow is rejected with a specific validation error. Replacing a published rule produces a new version. A failed index update leaves the authoritative version intact but marks retrieval or graph-dependent analysis unavailable until rebuilt.</p>
+<p><strong>Disposition:</strong> Validation errors return to steps 2–3 for correction. Publishing a replacement creates a new version. A failed projection update leaves the authoritative version intact and dependent analysis unavailable until recovery.</p>
+</div>
+<h4 id="ac-02">Acceptance criteria — AC-02</h4>
+<p>A past finding resolves its original policy clause after a policy update; a semantic search applies project and version filters; changing an artifact does not silently rewrite prior decisions.</p>
+<h4>Notes</h4>
+<p>Shared rules: <a href="#br-03">BR-03</a>, <a href="#br-04">BR-04</a>. Unresolved configuration and ownership decisions are tracked in <a href="#open-decisions">section 7.3</a>.</p>
+</section>
+<section class="usecase" id="uc-03" aria-labelledby="uc-03-title">
+<h3 id="uc-03-title">UC-03 — Ingest and normalize an agent trace</h3>
+<div class="uc-meta"><span><b>Status:</b> Draft</span><span><b>Priority:</b> Must within stated scope</span><span><b>Scope:</b> MVP</span><span><b>Requirements:</b> <a href="#fr-03">FR-03</a>, <a href="#nfr-01">NFR-01</a>, <a href="#nfr-04">NFR-04</a>, <a href="#nfr-05">NFR-05</a>, <a href="#nfr-07">NFR-07</a></span></div>
+<h4>Description</h4>
+<p>Turn an agent&#x27;s telemetry into a project-scoped canonical execution record without performing expensive analysis in the request path.</p>
+<h4>Actors</h4>
+<p>Customer agent or OTel Collector.</p>
+<h4>Preconditions</h4>
+<p>The caller has a scoped ingestion identity and an existing project and agent version. A redaction configuration is active.</p>
+<h4>Trigger</h4>
+<p>The caller submits OTLP-compatible spans or a supported framework-specific trace.</p>
+<h4>Postconditions</h4>
+<ul>
+<li><strong>On success:</strong> An accepted trace is retrievable with a visible processing state and durable path to analysis.</li>
+<li><strong>On failure:</strong> Rejected input is not acknowledged as accepted. Persisted work remains recoverable and is not reported as analyzed.</li>
+</ul>
+<h4>Main flow</h4>
+<ol class="flow">
+<li>The gateway and ingestion entrypoint authenticate the caller, enforce project boundaries and payload limits, and validate trace identifiers and structure.</li>
+<li>Redaction runs before sensitive fields are persisted. The adapter maps source spans to canonical agent, LLM, tool, retrieval, handoff, guardrail, and approval types.</li>
+<li>The normalizer reconstructs parent-child and chronological relationships, records warnings, and marks the trace <code>COMPLETE</code>, <code>PARTIAL</code>, or <code>OPEN</code> according to an explicit completion contract.</li>
+<li>PostgreSQL stores the canonical trace, source metadata needed for diagnostics, and a durable analysis-job record using a stable idempotency key.</li>
+<li>The ingestion API acknowledges acceptance. Job publication to Redis is retried or recovered by an outbox/sweep if the queue is temporarily unavailable.</li>
+</ol>
+<h4>Alternative flows and exceptions</h4>
+<div class="altflow"><h5>UC-03-A1 — Cancellation or interruption</h5>
+<p>Before submission, the sender may abandon the upload. After durable acceptance, disconnecting does not cancel analysis; a retry uses the same idempotency key.</p>
+</div>
+<div class="altflow"><h5>UC-03-E1 — Exceptions and recovery</h5>
+<p class="cond"><b>Branch:</b> Steps 1–5 of the main flow, as applicable.</p>
+<p>Duplicate delivery returns the existing trace or an idempotent acknowledgement without duplicate findings. Malformed payloads are rejected with actionable errors. A missing parent span is recorded as incomplete structure. A database failure prevents successful acceptance. A persisted but temporarily unqueued trace remains recoverable and is never reported as fully analyzed.</p>
+<p><strong>Disposition:</strong> Reject invalid payloads or unsuccessful persistence without acceptance. Duplicate submissions return the existing result. Incomplete structure remains explicit; accepted but unqueued work stays recoverable and pending analysis.</p>
+</div>
+<h4 id="ac-03">Acceptance criteria — AC-03</h4>
+<p>Replaying the same delivery does not multiply traces; a worker crash or queue outage cannot silently lose accepted work; redacted values are absent from normal persisted views; trace completeness is available to downstream detectors.</p>
+<h4>Notes</h4>
+<p>Shared rules: <a href="#br-02">BR-02</a>, <a href="#br-03">BR-03</a>, <a href="#br-06">BR-06</a>, <a href="#br-07">BR-07</a>. Unresolved configuration and ownership decisions are tracked in <a href="#open-decisions">section 7.3</a>.</p>
+</section>
+<section class="usecase" id="uc-04" aria-labelledby="uc-04-title">
+<h3 id="uc-04-title">UC-04 — Inspect a trace and its execution trajectory</h3>
+<div class="uc-meta"><span><b>Status:</b> Draft</span><span><b>Priority:</b> Must within stated scope</span><span><b>Scope:</b> MVP</span><span><b>Requirements:</b> <a href="#fr-04">FR-04</a>, <a href="#nfr-03">NFR-03</a>, <a href="#nfr-04">NFR-04</a>, <a href="#nfr-06">NFR-06</a>, <a href="#nfr-07">NFR-07</a></span></div>
+<h4>Description</h4>
+<p>Let a developer understand what happened and reach the evidence for any finding.</p>
+<h4>Actors</h4>
+<p>Agent developer.</p>
+<h4>Preconditions</h4>
+<p>A trace exists in the developer&#x27;s authorized project.</p>
+<h4>Trigger</h4>
+<p>The developer selects a trace from the project view.</p>
+<h4>Postconditions</h4>
+<ul>
+<li><strong>On success:</strong> The user can reconstruct the reported behavior from source records and identify any unavailable analysis components.</li>
+<li><strong>On failure:</strong> Unavailable views are labeled; access failure does not expose protected data or imply successful analysis.</li>
+</ul>
+<h4>Main flow</h4>
+<ol class="flow">
+<li>The UI shows outcome, behavioral and analysis states separately, plus the agent and policy versions.</li>
+<li>The developer switches between chronological and hierarchical spans and filters tool, LLM, retrieval, handoff, and approval events.</li>
+<li>The UI displays redacted arguments, statuses, timing, token use, and available costs.</li>
+<li>The developer selects a finding, follows its evidence IDs to the relevant spans and policy or workflow version, and opens the expected-versus-actual path view.</li>
+</ol>
+<h4>Alternative flows and exceptions</h4>
+<div class="altflow"><h5>UC-04-A1 — Cancellation or interruption</h5>
+<p>The developer may close the view at any step. No trace or analysis record changes.</p>
+</div>
+<div class="altflow"><h5>UC-04-E1 — Exceptions and recovery</h5>
+<p class="cond"><b>Branch:</b> Steps 1–4 of the main flow, as applicable.</p>
+<p>A partial trace is marked clearly; an incomplete run must not imply that an unseen approval was absent. If the graph projection is unavailable, the canonical span timeline and findings can still be displayed, with the graph view marked unavailable. Raw payload access requires additional authorization and audit logging.</p>
+<p><strong>Disposition:</strong> Continue with completeness warnings or the canonical timeline when the graph is unavailable. Deny unauthorized raw reads; the user may continue using the redacted view.</p>
+</div>
+<h4 id="ac-04">Acceptance criteria — AC-04</h4>
+<p>Each visible confirmed finding links to resolvable evidence in the same authorized project; the UI preserves ordering and parent-child distinctions; sensitive values remain masked in standard views.</p>
+<h4>Notes</h4>
+<p>Shared rules: <a href="#br-01">BR-01</a>, <a href="#br-02">BR-02</a>, <a href="#br-03">BR-03</a>, <a href="#br-05">BR-05</a>, <a href="#br-07">BR-07</a>. Unresolved configuration and ownership decisions are tracked in <a href="#open-decisions">section 7.3</a>.</p>
+</section>
+<section class="usecase" id="uc-05" aria-labelledby="uc-05-title">
+<h3 id="uc-05-title">UC-05 — Detect tool misuse and invalid arguments</h3>
+<div class="uc-meta"><span><b>Status:</b> Draft</span><span><b>Priority:</b> Must within stated scope</span><span><b>Scope:</b> MVP</span><span><b>Requirements:</b> <a href="#fr-05">FR-05</a>, <a href="#nfr-02">NFR-02</a>, <a href="#nfr-04">NFR-04</a>, <a href="#nfr-05">NFR-05</a>, <a href="#nfr-06">NFR-06</a></span></div>
+<h4>Description</h4>
+<p>Identify a wrong tool choice or an invalid invocation using the strongest available evidence.</p>
+<h4>Actors</h4>
+<p>Analysis worker. <strong>Beneficiary:</strong> Agent developer.</p>
+<h4>Preconditions</h4>
+<p>Tool specifications and relevant domain state are versioned; the trace includes the required tool call data.</p>
+<h4>Trigger</h4>
+<p>UC-03 queues a trace for analysis.</p>
+<h4>Postconditions</h4>
+<ul>
+<li><strong>On success:</strong> The run has validated findings, unconfirmed candidates, or an explicit insufficient-evidence state.</li>
+<li><strong>On failure:</strong> Insufficient evidence remains inconclusive; an unsupported claim is not confirmed.</li>
+</ul>
+<h4>Main flow</h4>
+<ol class="flow">
+<li>The worker checks tool names, schema versions, argument types, permitted ranges, and domain constraints using deterministic validators.</li>
+<li>It distinguishes a schema violation from an argument that is structurally valid but inconsistent with observed state, such as refunding more than the order value.</li>
+<li>If tool choice requires interpreting the task intent, a candidate <code>WRONG_TOOL</code> finding is passed to a bounded semantic critic with the task, tool specifications, and relevant spans.</li>
+<li>The evidence validator resolves cited records and verifies values before a finding is confirmed.</li>
+</ol>
+<h4>Alternative flows and exceptions</h4>
+<div class="altflow"><h5>UC-05-A1 — Cancellation or interruption</h5>
+<p>This is an automated check, with no interactive cancel operation specified. Worker interruption leaves work retryable and incomplete rather than passed.</p>
+</div>
+<div class="altflow"><h5>UC-05-E1 — Exceptions and recovery</h5>
+<p class="cond"><b>Branch:</b> Steps 1–4 of the main flow, as applicable.</p>
+<p>A missing specification or hidden required argument makes the assessment <code>INCONCLUSIVE</code>; it is not a clean pass. A failed tool call can still have invalid arguments, but execution failure and misuse are separate observations. If a side-effecting tool was already executed, AgentProof reports the event and its risk; the initial product does not retroactively prevent execution.</p>
+<p><strong>Disposition:</strong> Missing required specifications or argument evidence ends the affected check as INCONCLUSIVE. Execution failure is recorded separately; already executed side effects remain observed events.</p>
+</div>
+<h4 id="ac-05">Acceptance criteria — AC-05</h4>
+<p><code>INVALID_ARGUMENT</code> and <code>WRONG_TOOL</code> are distinct; findings cite the tool span and specification or domain value; the report identifies whether validation preceded or followed the action.</p>
+<h4>Notes</h4>
+<p>Shared rules: <a href="#br-01">BR-01</a>, <a href="#br-04">BR-04</a>, <a href="#br-06">BR-06</a>. Unresolved configuration and ownership decisions are tracked in <a href="#open-decisions">section 7.3</a>.</p>
+</section>
+<section class="usecase" id="uc-06" aria-labelledby="uc-06-title">
+<h3 id="uc-06-title">UC-06 — Verify policies and expected trajectories</h3>
+<div class="uc-meta"><span><b>Status:</b> Draft</span><span><b>Priority:</b> Must within stated scope</span><span><b>Scope:</b> MVP</span><span><b>Requirements:</b> <a href="#fr-06">FR-06</a>, <a href="#nfr-02">NFR-02</a>, <a href="#nfr-04">NFR-04</a>, <a href="#nfr-05">NFR-05</a>, <a href="#nfr-06">NFR-06</a></span></div>
+<h4>Description</h4>
+<p>Determine whether observed actions satisfy applicable business rules and workflow prerequisites.</p>
+<h4>Actors</h4>
+<p>Policy owner and analysis worker.</p>
+<h4>Preconditions</h4>
+<p>The run is associated with an immutable policy/workflow version and enough trace data to decide the relevant constraints.</p>
+<h4>Trigger</h4>
+<p>A trace contains a governed action or an evaluation requests workflow conformance.</p>
+<h4>Postconditions</h4>
+<ul>
+<li><strong>On success:</strong> Applicable checks and path differences are recorded with source versions and evidence.</li>
+<li><strong>On failure:</strong> Uncertain applicability or completeness remains explicit; invalid configuration cannot create a trustworthy pass.</li>
+</ul>
+<h4>Main flow</h4>
+<ol class="flow">
+<li>The worker identifies applicable policy conditions from tool arguments and prior observed state.</li>
+<li>It evaluates deterministic requirements first: required steps, order, conditional branches, forbidden transitions, and approval before side effects.</li>
+<li>The trajectory comparer emits a machine-readable difference: missing, unexpected, repeated, wrong-order, forbidden, or incomplete step.</li>
+<li>For ambiguous natural-language clauses, semantic retrieval obtains the exact policy version and a policy critic proposes a judgment.</li>
+<li>The validator checks the source clause, relevant spans, event order, and trace completeness before confirming a <code>POLICY_VIOLATION</code> or related finding.</li>
+</ol>
+<h4>Reference scenario</h4>
+<p>For <code>refund_order(order_id=1024, amount=800)</code>, policy <code>REFUND-004</code> version 3 requires policy lookup and human approval before the refund. If a complete trace shows <code>find_order → refund_order</code>, the system reports the missing prerequisites while preserving <code>Outcome: SUCCESS</code> if the refund actually completed.</p>
+<h4>Alternative flows and exceptions</h4>
+<div class="altflow"><h5>UC-06-A1 — Cancellation or interruption</h5>
+<p>This is an automated check, with no interactive cancel operation specified. Interrupted checks remain incomplete and cannot establish conformance.</p>
+</div>
+<div class="altflow"><h5>UC-06-E1 — Exceptions and recovery</h5>
+<p class="cond"><b>Branch:</b> Steps 1–5 of the main flow, as applicable.</p>
+<p>An optional branch does not fail merely because it was skipped. If policy applicability is undecidable or the trace is partial at the approval boundary, return <code>INCONCLUSIVE</code> or an analysis error according to the evaluation contract; do not assert absence from incomplete evidence. Contradictory policies are reported as a configuration error.</p>
+<p><strong>Disposition:</strong> Skip inapplicable optional branches. Undecidable applicability or incomplete intervals produce INCONCLUSIVE or an analysis error. Contradictory policies stop the affected check as a configuration error.</p>
+</div>
+<h4 id="ac-06">Acceptance criteria — AC-06</h4>
+<p>Same inputs and rule versions produce the same deterministic result; missing and wrong-order steps are distinguished; a confirmed violation names the exact clause and ordered action spans; partial traces cannot create a false missing-approval claim.</p>
+<h4>Notes</h4>
+<p>Shared rules: <a href="#br-01">BR-01</a>, <a href="#br-02">BR-02</a>, <a href="#br-04">BR-04</a>, <a href="#br-05">BR-05</a>, <a href="#br-06">BR-06</a>. Unresolved configuration and ownership decisions are tracked in <a href="#open-decisions">section 7.3</a>.</p>
+</section>
+<section class="usecase" id="uc-07" aria-labelledby="uc-07-title">
+<h3 id="uc-07-title">UC-07 — Detect loops and inefficient behavior</h3>
+<div class="uc-meta"><span><b>Status:</b> Draft</span><span><b>Priority:</b> Must within stated scope</span><span><b>Scope:</b> MVP, with later semantic expansion</span><span><b>Requirements:</b> <a href="#fr-07">FR-07</a>, <a href="#nfr-02">NFR-02</a>, <a href="#nfr-04">NFR-04</a>, <a href="#nfr-05">NFR-05</a>, <a href="#nfr-06">NFR-06</a></span></div>
+<h4>Description</h4>
+<p>Find repeated or unnecessary work and quantify its observed cost where the data permits.</p>
+<h4>Actors</h4>
+<p>Analysis worker.</p>
+<h4>Preconditions</h4>
+<p>The trace contains ordered actions; retrieval-result hashes or summaries and usage metrics are available for semantic or cost analysis.</p>
+<h4>Trigger</h4>
+<p>The worker analyzes an accepted trace or an evaluation aggregates runs.</p>
+<h4>Postconditions</h4>
+<ul>
+<li><strong>On success:</strong> Findings such as <code>ACTION_LOOP</code>, <code>RETRIEVAL_LOOP</code>, <code>NO_PROGRESS</code>, or <code>INEFFICIENT_TRAJECTORY</code> carry relevant span sequences and method/configuration versions.</li>
+<li><strong>On failure:</strong> Unavailable evidence limits the assessment; missing usage does not become a zero-cost result.</li>
+</ul>
+<h4>Main flow</h4>
+<ol class="flow">
+<li>Deterministic checks detect repeated identical calls and repeated subsequences.</li>
+<li>Retrieval analysis measures overlap or semantic similarity between consecutive results and checks for new evidence or state changes.</li>
+<li>The worker excludes retries that a tool policy explicitly permits and labels uncertain efficiency judgments as candidates.</li>
+<li>It reports observed extra calls, tokens, and latency; avoidable cost is an estimate only when its counterfactual assumptions are stated.</li>
+</ol>
+<h4>Alternative flows and exceptions</h4>
+<div class="altflow"><h5>UC-07-A1 — Cancellation or interruption</h5>
+<p>This is an automated check, with no interactive cancel operation specified. Interruption leaves unfinished assessment visible; observed metrics are not fabricated.</p>
+</div>
+<div class="altflow"><h5>UC-07-E1 — Exceptions and recovery</h5>
+<p class="cond"><b>Branch:</b> Steps 2–4 of the main flow, as applicable.</p>
+<p>Similar queries can be justified if results or task state change materially. Missing retrieval outputs prevent a confident <code>RETRIEVAL_LOOP</code> decision. A Qdrant outage does not erase deterministic repetition findings but can make semantic progress assessment unavailable.</p>
+<p><strong>Disposition:</strong> Changed results or state and permitted retries may justify repetition. Missing outputs or semantic-search outages leave affected progress assessments unavailable; deterministic findings remain available.</p>
+</div>
+<h4 id="ac-07">Acceptance criteria — AC-07</h4>
+<p>Exact loops need no LLM; permitted retries do not trigger false positives; a semantic-loop finding includes the compared evidence or summaries and configured decision threshold; estimated impact is labeled separately from observed usage.</p>
+<h4>Notes</h4>
+<p>Shared rules: <a href="#br-01">BR-01</a>, <a href="#br-04">BR-04</a>, <a href="#br-06">BR-06</a>. Unresolved configuration and ownership decisions are tracked in <a href="#open-decisions">section 7.3</a>.</p>
+</section>
+<section class="usecase" id="uc-08" aria-labelledby="uc-08-title">
+<h3 id="uc-08-title">UC-08 — Validate semantic judgments and generate an RCA</h3>
+<div class="uc-meta"><span><b>Status:</b> Draft</span><span><b>Priority:</b> Must within stated scope</span><span><b>Scope:</b> MVP</span><span><b>Requirements:</b> <a href="#fr-08">FR-08</a>, <a href="#nfr-04">NFR-04</a>, <a href="#nfr-05">NFR-05</a>, <a href="#nfr-06">NFR-06</a>, <a href="#nfr-07">NFR-07</a></span></div>
+<h4>Description</h4>
+<p>Explain confirmed failures without promoting unsupported model claims to facts.</p>
+<h4>Actors</h4>
+<p>Analysis worker. <strong>Beneficiary:</strong> Reviewer.</p>
+<h4>Preconditions</h4>
+<p>Candidate findings exist; retrievable evidence has project, version, and access metadata.</p>
+<h4>Trigger</h4>
+<p>Deterministic or statistical analysis submits a candidate requiring contextual judgment or explanation.</p>
+<h4>Postconditions</h4>
+<ul>
+<li><strong>On success:</strong> The report has traceable assertions, or it clearly states that a causal claim cannot be established.</li>
+<li><strong>On failure:</strong> Unsupported causal claims remain unconfirmed, with validation diagnostics and available deterministic findings retained.</li>
+</ul>
+<h4>Main flow</h4>
+<ol class="flow">
+<li>A retriever builds a bounded evidence package from authorized Qdrant candidates, Neo4j relationships, and authoritative PostgreSQL records.</li>
+<li>LangGraph routes the package to applicable trajectory, policy, or efficiency critics; each returns a structured decision, reason, uncertainty, and evidence IDs.</li>
+<li>The evidence validator checks IDs, source versions, quoted values, graph relationships, metric calculations, and redaction constraints.</li>
+<li>A valid judgment can become a confirmed finding. Unsupported claims remain unconfirmed and are visible as insufficient evidence or analysis diagnostics.</li>
+<li>The RCA synthesizer combines validated findings with relevant relationships and clearly separates observed facts, rule-derived conclusions, semantic judgments, and hypotheses. Recommendations point to a concrete action or control.</li>
+</ol>
+<h4>Alternative flows and exceptions</h4>
+<div class="altflow"><h5>UC-08-A1 — Cancellation or interruption</h5>
+<p>No interactive cancellation is specified for critic jobs. Interrupted judgment or synthesis remains incomplete; prior validated findings remain available.</p>
+</div>
+<div class="altflow"><h5>UC-08-E1 — Exceptions and recovery</h5>
+<p class="cond"><b>Branch:</b> Steps 1–5 of the main flow, as applicable.</p>
+<p>An LLM response without evidence IDs cannot confirm a finding. A source record missing from a projection is verified against the authoritative store; unrecoverable discrepancies become analysis errors. Prompt-injection text in retrieved material is treated as data, not as an instruction to the critic. An unavailable LLM does not invalidate already confirmed deterministic findings.</p>
+<p><strong>Disposition:</strong> Unverifiable claims remain unconfirmed. Check missing projection evidence against the source; unrecoverable discrepancies become analysis errors. LLM outages preserve confirmed deterministic findings.</p>
+</div>
+<h4 id="ac-08">Acceptance criteria — AC-08</h4>
+<p>Every confirmed semantic finding has validated evidence IDs; an RCA cannot claim that a planner failed to read a policy as an observed fact unless the trace supports it; validators record rejection reasons; models do not have unrestricted datastore access.</p>
+<h4>Notes</h4>
+<p>Shared rules: <a href="#br-01">BR-01</a>, <a href="#br-03">BR-03</a>, <a href="#br-04">BR-04</a>, <a href="#br-06">BR-06</a>. Unresolved configuration and ownership decisions are tracked in <a href="#open-decisions">section 7.3</a>.</p>
+</section>
+<section class="usecase" id="uc-09" aria-labelledby="uc-09-title">
+<h3 id="uc-09-title">UC-09 — Review a finding and its evidence</h3>
+<div class="uc-meta"><span><b>Status:</b> Draft</span><span><b>Priority:</b> Must within stated scope</span><span><b>Scope:</b> MVP</span><span><b>Requirements:</b> <a href="#fr-09">FR-09</a>, <a href="#nfr-04">NFR-04</a>, <a href="#nfr-06">NFR-06</a>, <a href="#nfr-09">NFR-09</a></span></div>
+<h4>Description</h4>
+<p>Allow a human to confirm, dismiss, or request follow-up on an analysis result.</p>
+<h4>Actors</h4>
+<p>Reviewer.</p>
+<h4>Preconditions</h4>
+<p>A finding or candidate exists in an authorized project.</p>
+<h4>Trigger</h4>
+<p>The reviewer opens a finding from the trace or evaluation UI.</p>
+<h4>Postconditions</h4>
+<ul>
+<li><strong>On success:</strong> The original result and human judgment remain independently inspectable.</li>
+<li><strong>On failure:</strong> No unauthorized or conflicting annotation replaces the original result or a prior review.</li>
+</ul>
+<h4>Main flow</h4>
+<ol class="flow">
+<li>The reviewer sees the failure type, severity, evaluator version, confidence if applicable, evidence, source policy, trace completeness, and system analysis state.</li>
+<li>The reviewer follows evidence references and records <code>CONFIRMED</code>, <code>DISMISSED</code>, or <code>NEEDS_REVIEW</code>, with an optional rationale.</li>
+<li>The system stores a separate, timestamped annotation with actor identity and preserves the machine-produced finding and evidence.</li>
+<li>Evaluation reports distinguish automated findings from reviewer decisions; if review changes gate eligibility, the gate is recomputed with the review-policy version recorded.</li>
+</ol>
+<h4>Alternative flows and exceptions</h4>
+<div class="altflow"><h5>UC-09-A1 — Cancellation or interruption</h5>
+<p>Before submitting step 2, the reviewer may leave without adding an annotation. A committed annotation remains auditable and does not disappear when the view closes.</p>
+</div>
+<div class="altflow"><h5>UC-09-E1 — Exceptions and recovery</h5>
+<p class="cond"><b>Branch:</b> Steps 1–3 of the main flow, as applicable.</p>
+<p>An unauthorized reviewer cannot see or annotate a finding. An annotation submitted against an obsolete version prompts a conflict resolution rather than silently replacing another review.</p>
+<p><strong>Disposition:</strong> Deny unauthorized review access. An obsolete annotation version requires conflict resolution and resubmission at step 2; the existing review is not silently overwritten.</p>
+</div>
+<h4 id="ac-09">Acceptance criteria — AC-09</h4>
+<p>Review actions are auditable; dismissing one finding does not delete its trace or evidence; exported evaluation data includes the review state and policy governing its effect on gates.</p>
+<h4>Notes</h4>
+<p>Shared rules: <a href="#br-01">BR-01</a>, <a href="#br-03">BR-03</a>, <a href="#br-08">BR-08</a>. Unresolved configuration and ownership decisions are tracked in <a href="#open-decisions">section 7.3</a>.</p>
+</section>
+<section class="usecase" id="uc-10" aria-labelledby="uc-10-title">
+<h3 id="uc-10-title">UC-10 — Evaluate an agent version on an external test run</h3>
+<div class="uc-meta"><span><b>Status:</b> Draft</span><span><b>Priority:</b> Must within stated scope</span><span><b>Scope:</b> MVP</span><span><b>Requirements:</b> <a href="#fr-10">FR-10</a>, <a href="#nfr-04">NFR-04</a>, <a href="#nfr-05">NFR-05</a>, <a href="#nfr-06">NFR-06</a>, <a href="#nfr-08">NFR-08</a></span></div>
+<h4>Description</h4>
+<p>Produce an evaluation run from customer-executed agent cases without running arbitrary customer code inside AgentProof.</p>
+<h4>Actors</h4>
+<p>Evaluation engineer and CI system.</p>
+<h4>Preconditions</h4>
+<p>A versioned dataset and evaluation configuration exist; the client can authenticate and execute its own agent.</p>
+<h4>Trigger</h4>
+<p>A developer proposes a code, prompt, tool, model, or workflow change.</p>
+<h4>Postconditions</h4>
+<ul>
+<li><strong>On success:</strong> The run is completed with reproducible inputs or has an explicit error and diagnostic record.</li>
+<li><strong>On failure:</strong> Incomplete or failed required work is visible; no apparently complete successful report is published.</li>
+</ul>
+<h4>Main flow</h4>
+<ol class="flow">
+<li>The client creates an evaluation run pinned to project, agent candidate version, dataset version, policy/workflow versions, and evaluator configuration.</li>
+<li>Customer CI executes each case and submits resulting traces with case IDs and idempotency keys.</li>
+<li>The client signals that submission is complete. The system freezes the expected case set and waits for ingestion and all required analysis jobs to reach terminal states.</li>
+<li>The evaluator aggregates outcomes, finding rates, policy violations, trajectory conformance, latency, tokens, and cost, preserving denominators and missing-data counts.</li>
+<li>The system publishes a versioned report and exposes a machine-readable result when the run is complete.</li>
+</ol>
+<h4>Alternative flows and exceptions</h4>
+<div class="altflow"><h5>UC-10-A1 — Cancellation or interruption</h5>
+<p>Before creating the run, the client may abandon the request. After creation, stopping uploads leaves an incomplete run; a configured deadline may yield ERROR. No evaluation-cancel API is specified.</p>
+</div>
+<div class="altflow"><h5>UC-10-E1 — Exceptions and recovery</h5>
+<p class="cond"><b>Branch:</b> Steps 2–5 of the main flow, as applicable.</p>
+<p>Missing cases, duplicate IDs, incomplete traces, or required critic failures prevent an apparently complete evaluation. A deadline can mark the run <code>ERROR</code> with the missing work recorded; it does not imply that the candidate passed. Retrying a trace upload or finalize request is idempotent. A case outcome that the customer did not provide is not inferred from a polished final answer.</p>
+<p><strong>Disposition:</strong> Submission completion does not mean evaluation completion. Missing cases, conflicting IDs, incomplete traces, or failed required critics keep the run incomplete or yield ERROR at its deadline. Safe retries reuse the existing submission or finalize result.</p>
+</div>
+<h4 id="ac-10">Acceptance criteria — AC-10</h4>
+<p>The system never executes the customer&#x27;s production agent; an evaluation cannot be finalized while required analyses are pending; each metric exposes numerator, denominator, exclusions, and configuration version.</p>
+<h4>Notes</h4>
+<p>Shared rules: <a href="#br-04">BR-04</a>, <a href="#br-05">BR-05</a>, <a href="#br-06">BR-06</a>, <a href="#br-07">BR-07</a>. Unresolved configuration and ownership decisions are tracked in <a href="#open-decisions">section 7.3</a>.</p>
+</section>
+<section class="usecase" id="uc-11" aria-labelledby="uc-11-title">
+<h3 id="uc-11-title">UC-11 — Compare a candidate with a baseline</h3>
+<div class="uc-meta"><span><b>Status:</b> Draft</span><span><b>Priority:</b> Must within stated scope</span><span><b>Scope:</b> MVP</span><span><b>Requirements:</b> <a href="#fr-11">FR-11</a>, <a href="#nfr-04">NFR-04</a>, <a href="#nfr-06">NFR-06</a>, <a href="#nfr-08">NFR-08</a></span></div>
+<h4>Description</h4>
+<p>Determine whether a proposed agent version regresses in behavior, quality, latency, or cost.</p>
+<h4>Actors</h4>
+<p>Evaluation engineer.</p>
+<h4>Preconditions</h4>
+<p>Candidate and baseline evaluations are complete and have compatible dataset, policy, metric definitions, and evaluator settings; differences are explicitly documented where comparison is allowed.</p>
+<h4>Trigger</h4>
+<p>The engineer selects a candidate and an approved baseline, or UC-12 requests comparison.</p>
+<h4>Postconditions</h4>
+<ul>
+<li><strong>On success:</strong> A reproducible comparison links each aggregate to source evaluation runs and contributing cases.</li>
+<li><strong>On failure:</strong> An incompatible comparison yields an error, not a misleading regression percentage.</li>
+</ul>
+<h4>Main flow</h4>
+<ol class="flow">
+<li>The system validates compatibility and records the comparison inputs.</li>
+<li>It presents side-by-side outcome and trajectory metrics, absolute changes, relative changes where the denominator is nonzero, and uncertainty or sample-size context where appropriate.</li>
+<li>The engineer drills into cases contributing to a changed metric and opens their trace-level findings.</li>
+<li>The comparison becomes a pinned input to a gate decision.</li>
+</ol>
+<h4>Alternative flows and exceptions</h4>
+<div class="altflow"><h5>UC-11-A1 — Cancellation or interruption</h5>
+<p>The engineer may leave the comparison view at any time. Candidate and baseline evaluations remain unchanged; no gate promotion follows from leaving.</p>
+</div>
+<div class="altflow"><h5>UC-11-E1 — Exceptions and recovery</h5>
+<p class="cond"><b>Branch:</b> Steps 1–2 of the main flow, as applicable.</p>
+<p>Incompatible or missing dataset versions produce a comparison error rather than a misleading percentage. A baseline metric of zero requires a defined handling rule instead of division by zero. Missing token or cost data remains visible as missing data, not a zero-valued improvement.</p>
+<p><strong>Disposition:</strong> Incompatible or missing dataset versions end the comparison with an error. A zero baseline uses an explicitly defined rule; missing cost or token data remains missing rather than an improvement.</p>
+</div>
+<h4 id="ac-11">Acceptance criteria — AC-11</h4>
+<p>Critical policy failures are not hidden inside a composite score; absolute and relative deltas are distinct; a comparison can be traced to its exact baseline and candidate versions.</p>
+<h4>Notes</h4>
+<p>Shared rules: <a href="#br-04">BR-04</a>, <a href="#br-05">BR-05</a>, <a href="#br-06">BR-06</a>. Unresolved configuration and ownership decisions are tracked in <a href="#open-decisions">section 7.3</a>.</p>
+</section>
+<section class="usecase" id="uc-12" aria-labelledby="uc-12-title">
+<h3 id="uc-12-title">UC-12 — Enforce a CI regression gate</h3>
+<div class="uc-meta"><span><b>Status:</b> Draft</span><span><b>Priority:</b> Must within stated scope</span><span><b>Scope:</b> MVP</span><span><b>Requirements:</b> <a href="#fr-12">FR-12</a>, <a href="#nfr-04">NFR-04</a>, <a href="#nfr-06">NFR-06</a>, <a href="#nfr-08">NFR-08</a>, <a href="#nfr-09">NFR-09</a></span></div>
+<h4>Description</h4>
+<p>Provide a reliable decision for an existing CI system before an agent version is promoted.</p>
+<h4>Actors</h4>
+<p>CI system. <strong>Supporting actor:</strong> Evaluation engineer.</p>
+<h4>Preconditions</h4>
+<p>A versioned gate definition exists; the candidate and baseline meet UC-10 and UC-11 requirements. CI has narrowly scoped M2M permissions.</p>
+<h4>Trigger</h4>
+<p>The CI workflow requests a gate result for the completed evaluation.</p>
+<h4>Postconditions</h4>
+<ul>
+<li><strong>On success:</strong> The decision and its exact gate, input, metric, and evaluator versions are stored and inspectable.</li>
+<li><strong>On failure:</strong> ERROR and pending never permit automatic promotion; the decision includes diagnostics.</li>
+</ul>
+<h4>Main flow</h4>
+<ol class="flow">
+<li>The system evaluates each configured requirement against pinned metrics, findings, and baseline changes.</li>
+<li>Mandatory safety requirements are evaluated independently of improvements in unrelated measures.</li>
+<li>It returns <code>PASS</code> if all requirements are verifiably satisfied, or <code>FAIL</code> with each breached requirement and its observed value if the complete trustworthy evaluation violates at least one requirement.</li>
+<li>CI continues promotion only for <code>PASS</code>; it presents the report and stops promotion for <code>FAIL</code>.</li>
+</ol>
+<h4>Alternative flows and exceptions</h4>
+<div class="altflow"><h5>UC-12-A1 — Cancellation or interruption</h5>
+<p>If CI stops waiting or times out, promotion remains blocked. Abandoning the request cannot convert a pending or erroneous result to PASS.</p>
+</div>
+<div class="altflow"><h5>UC-12-E1 — Exceptions and recovery</h5>
+<p class="cond"><b>Branch:</b> Steps 1–4 of the main flow, as applicable.</p>
+<p>A pending evaluation returns a nonterminal state. Unavailable required analyses, missing cases, stale projections needed for a requirement, incompatible baseline, or internal failure produce <code>ERROR</code> and diagnostics. CI must block automatic promotion for <code>ERROR</code> as well as <code>FAIL</code>; a manual override, if ever supported, is a separate authorized and audited process.</p>
+<p><strong>Disposition:</strong> Pending work returns a nonterminal response; missing or untrustworthy required inputs return ERROR. CI blocks promotion for both. A future manual override would require separate authorization and audit.</p>
+</div>
+<h4 id="ac-12">Acceptance criteria — AC-12</h4>
+<p>Gate outcomes are stable for the same pinned inputs; CI distinguishes <code>PASS</code>, <code>FAIL</code>, <code>ERROR</code>, and pending; policy-violation limits cannot be offset by improved task success; a response includes a concise machine-readable explanation.</p>
+<h4>Notes</h4>
+<p>Shared rules: <a href="#br-04">BR-04</a>, <a href="#br-05">BR-05</a>, <a href="#br-06">BR-06</a>, <a href="#br-08">BR-08</a>. Unresolved configuration and ownership decisions are tracked in <a href="#open-decisions">section 7.3</a>.</p>
+</section>
+<section class="usecase" id="uc-13" aria-labelledby="uc-13-title">
+<h3 id="uc-13-title">UC-13 — Govern sensitive trace data and derived projections</h3>
+<div class="uc-meta"><span><b>Status:</b> Draft</span><span><b>Priority:</b> Must within stated scope</span><span><b>Scope:</b> MVP controls; operations mature later</span><span><b>Requirements:</b> <a href="#fr-13">FR-13</a>, <a href="#nfr-04">NFR-04</a>, <a href="#nfr-05">NFR-05</a>, <a href="#nfr-07">NFR-07</a>, <a href="#nfr-09">NFR-09</a></span></div>
+<h4>Description</h4>
+<p>Keep telemetry accessible only to authorized people and honor data retention or deletion policy across all derived stores.</p>
+<h4>Actors</h4>
+<p>Project administrator. <strong>Supporting actor:</strong> Operations worker.</p>
+<h4>Preconditions</h4>
+<p>Data is associated with a project and has a declared classification, retention policy, and redaction settings.</p>
+<h4>Trigger</h4>
+<p>A privileged read, scheduled retention expiry, or authorized deletion request occurs.</p>
+<h4>Postconditions</h4>
+<ul>
+<li><strong>On success:</strong> The system reaches a verifiable deletion state, or explicitly exposes incomplete propagation for follow-up.</li>
+<li><strong>On failure:</strong> Incomplete deletion propagation remains pending and visible; erased source content cannot be restored by a rebuild.</li>
+</ul>
+<h4>Main flow</h4>
+<ol class="flow">
+<li>The system enforces project and role checks before disclosing trace fields and records privileged raw-payload access.</li>
+<li>At expiry or authorized erasure, PostgreSQL marks the source records and manages deletion according to the chosen policy.</li>
+<li>A durable deletion/reprojection job removes or invalidates corresponding Qdrant vectors, Neo4j nodes/edges, and any relevant caches.</li>
+<li>The system verifies the projection state and keeps an audit record that does not itself re-expose erased content.</li>
+</ol>
+<h4>Alternative flows and exceptions</h4>
+<div class="altflow"><h5>UC-13-A1 — Cancellation or interruption</h5>
+<p>Before an authorized deletion request is submitted, the administrator may abandon it. Once deletion starts, closing the interface does not reverse erasure or cancel propagation.</p>
+</div>
+<div class="altflow"><h5>UC-13-E1 — Exceptions and recovery</h5>
+<p class="cond"><b>Branch:</b> Steps 1–4 of the main flow, as applicable.</p>
+<p>A projection outage leaves the request pending with a retryable status and blocks reindexing of deleted source material. A legal or operational hold, if implemented, must be a separately authorized and documented rule. A request for data outside the administrator&#x27;s project is denied.</p>
+<p><strong>Disposition:</strong> Deny cross-project requests. A projection outage leaves deletion pending and retryable while preventing deleted-source reindexing. Any hold requires a separately authorized, documented policy.</p>
+</div>
+<h4 id="ac-13">Acceptance criteria — AC-13</h4>
+<p>Erased data does not reappear after index rebuilds; access to raw payloads is recorded; error paths do not leak sensitive fields; each project can identify its configured retention and redaction policy.</p>
+<h4>Notes</h4>
+<p>Shared rules: <a href="#br-03">BR-03</a>, <a href="#br-06">BR-06</a>. Unresolved configuration and ownership decisions are tracked in <a href="#open-decisions">section 7.3</a>.</p>
+</section>
+<h3 id="reference-scenario">10.2 Reference end-to-end scenario</h3>
+<p><strong>Policy:</strong> <code>REFUND-004</code> version 3 requires a policy lookup and human approval before a refund above $500.</p>
+<div class="table-wrap" role="region" aria-label="Reference refund scenario" tabindex="0">
+<table>
+<thead><tr><th scope="col">Step</th><th scope="col">Action</th><th scope="col">Expected observable result</th></tr></thead>
+<tbody>
+<tr><td>1</td><td>Register <code>support-agent</code> version 1.5 and applicable policy/workflow versions</td><td>Immutable evaluation context</td></tr>
+<tr><td>2</td><td>Customer CI runs case <code>refund-1024</code> with requested amount $800</td><td>Trace with case ID and agent version</td></tr>
+<tr><td>3</td><td>Agent calls <code>find_order(1024)</code> then <code>refund_order(1024, 800)</code></td><td>Complete trace; no approval span in the relevant interval</td></tr>
+<tr><td>4</td><td>Agent returns “Your refund has been completed”</td><td>Outcome may be <code>SUCCESS</code> if the tool result confirms it</td></tr>
+<tr><td>5</td><td>AgentProof evaluates ordering and prerequisites</td><td><code>POLICY_VIOLATION</code> with tool span and <code>REFUND-004</code> v3 evidence</td></tr>
+<tr><td>6</td><td>Evidence validator verifies source values and completeness</td><td>Confirmed finding; RCA may recommend a tool-boundary approval precondition</td></tr>
+<tr><td>7</td><td>Version comparison and mandatory gate run</td><td><code>FAIL</code> if the configured violation limit is breached; CI stops promotion</td></tr>
+</tbody>
+</table>
+</div>
+<p>If the approval interval is missing from telemetry, step 5 is <strong>inconclusive</strong> rather than a confirmed violation. If semantic analysis required by the gate cannot complete, step 7 is <code>ERROR</code> and CI still stops automatic promotion.</p>
+<h3 id="release-acceptance">10.3 Release acceptance for the first complete slice</h3>
+<ol>
+<li id="ra-01"><b>RA-01.</b> A customer-support agent exports a trace containing the reference tools <code>find_customer</code>, <code>find_order</code>, <code>lookup_policy</code>, <code>request_approval</code>, <code>refund_order</code>, and <code>send_email</code> where applicable.</li>
+<li id="ra-02"><b>RA-02.</b> Ingestion accepts and normalizes traces idempotently, records completeness, and recovers accepted work after a worker or queue interruption.</li>
+<li id="ra-03"><b>RA-03.</b> The five initial failure classes <code>WRONG_TOOL</code>, <code>INVALID_ARGUMENT</code>, <code>ACTION_LOOP</code>, <code>RETRIEVAL_LOOP</code>, and <code>POLICY_VIOLATION</code> have controlled positive and negative scenarios.</li>
+<li id="ra-04"><b>RA-04.</b> Every confirmed finding leads to validated, project-authorized evidence and the exact policy or tool-specification version.</li>
+<li id="ra-05"><b>RA-05.</b> The Trace Explorer shows a successful outcome with a failed behavioral result for the high-value refund case.</li>
+<li id="ra-06"><b>RA-06.</b> Two agent versions can be evaluated on the same pinned dataset; comparison exposes missing data and incompatible inputs.</li>
+<li id="ra-07"><b>RA-07.</b> A mandatory regression gate returns <code>FAIL</code> for the policy regression, while incomplete or unavailable required analysis returns <code>ERROR</code>.</li>
+<li id="ra-08"><b>RA-08.</b> A reviewer can annotate findings without mutating canonical trace or machine-generated evidence.</li>
+<li id="ra-09"><b>RA-09.</b> The complete demonstration is exercised through the local deployment with backend integration and browser end-to-end tests.</li>
+</ol>
+<p>These are planned acceptance checks. This document records no executed product tests or release approval.</p>
+<h2 id="traceability">11. Traceability matrix</h2>
+<p>Each functional requirement maps to its source use case and local acceptance anchor. Cross-cutting NFRs map to the affected flows and their verification criteria. “Not verified” refers to product behavior, not the readability of this document.</p>
+<div class="table-wrap" role="region" aria-label="Requirements traceability" tabindex="0">
+<table>
+<thead><tr><th scope="col">Requirement</th><th scope="col">Use case</th><th scope="col">Acceptance reference</th><th scope="col">Status</th></tr></thead>
+<tbody>
+<tr><td><a href="#fr-01">FR-01</a></td><td><a href="#uc-01">UC-01</a></td><td><a href="#ac-01">AC-01</a></td><td>Not verified</td></tr>
+<tr><td><a href="#fr-02">FR-02</a></td><td><a href="#uc-02">UC-02</a></td><td><a href="#ac-02">AC-02</a></td><td>Not verified</td></tr>
+<tr><td><a href="#fr-03">FR-03</a></td><td><a href="#uc-03">UC-03</a></td><td><a href="#ac-03">AC-03</a></td><td>Not verified</td></tr>
+<tr><td><a href="#fr-04">FR-04</a></td><td><a href="#uc-04">UC-04</a></td><td><a href="#ac-04">AC-04</a></td><td>Not verified</td></tr>
+<tr><td><a href="#fr-05">FR-05</a></td><td><a href="#uc-05">UC-05</a></td><td><a href="#ac-05">AC-05</a></td><td>Not verified</td></tr>
+<tr><td><a href="#fr-06">FR-06</a></td><td><a href="#uc-06">UC-06</a></td><td><a href="#ac-06">AC-06</a></td><td>Not verified</td></tr>
+<tr><td><a href="#fr-07">FR-07</a></td><td><a href="#uc-07">UC-07</a></td><td><a href="#ac-07">AC-07</a></td><td>Not verified</td></tr>
+<tr><td><a href="#fr-08">FR-08</a></td><td><a href="#uc-08">UC-08</a></td><td><a href="#ac-08">AC-08</a></td><td>Not verified</td></tr>
+<tr><td><a href="#fr-09">FR-09</a></td><td><a href="#uc-09">UC-09</a></td><td><a href="#ac-09">AC-09</a></td><td>Not verified</td></tr>
+<tr><td><a href="#fr-10">FR-10</a></td><td><a href="#uc-10">UC-10</a></td><td><a href="#ac-10">AC-10</a></td><td>Not verified</td></tr>
+<tr><td><a href="#fr-11">FR-11</a></td><td><a href="#uc-11">UC-11</a></td><td><a href="#ac-11">AC-11</a></td><td>Not verified</td></tr>
+<tr><td><a href="#fr-12">FR-12</a></td><td><a href="#uc-12">UC-12</a></td><td><a href="#ac-12">AC-12</a></td><td>Not verified</td></tr>
+<tr><td><a href="#fr-13">FR-13</a></td><td><a href="#uc-13">UC-13</a></td><td><a href="#ac-13">AC-13</a></td><td>Not verified</td></tr>
+<tr><td><a href="#nfr-01">NFR-01</a></td><td><a href="#uc-03">UC-03</a></td><td><a href="#nfr-01">Target and verification</a></td><td>Not verified</td></tr>
+<tr><td><a href="#nfr-02">NFR-02</a></td><td><a href="#uc-05">UC-05</a>, <a href="#uc-06">UC-06</a>, <a href="#uc-07">UC-07</a></td><td><a href="#nfr-02">Target and verification</a></td><td>Not verified</td></tr>
+<tr><td><a href="#nfr-03">NFR-03</a></td><td><a href="#uc-04">UC-04</a></td><td><a href="#nfr-03">Target and verification</a></td><td>Not verified</td></tr>
+<tr><td><a href="#nfr-04">NFR-04</a></td><td><a href="#uc-01">UC-01</a>, <a href="#uc-02">UC-02</a>, <a href="#uc-03">UC-03</a>, <a href="#uc-04">UC-04</a>, <a href="#uc-05">UC-05</a>, <a href="#uc-06">UC-06</a>, <a href="#uc-07">UC-07</a>, <a href="#uc-08">UC-08</a>, <a href="#uc-09">UC-09</a>, <a href="#uc-10">UC-10</a>, <a href="#uc-11">UC-11</a>, <a href="#uc-12">UC-12</a>, <a href="#uc-13">UC-13</a></td><td><a href="#nfr-04">Target and verification</a></td><td>Not verified</td></tr>
+<tr><td><a href="#nfr-05">NFR-05</a></td><td><a href="#uc-03">UC-03</a>, <a href="#uc-05">UC-05</a>, <a href="#uc-06">UC-06</a>, <a href="#uc-07">UC-07</a>, <a href="#uc-08">UC-08</a>, <a href="#uc-10">UC-10</a>, <a href="#uc-13">UC-13</a></td><td><a href="#nfr-05">Target and verification</a></td><td>Not verified</td></tr>
+<tr><td><a href="#nfr-06">NFR-06</a></td><td><a href="#uc-02">UC-02</a>, <a href="#uc-04">UC-04</a>, <a href="#uc-05">UC-05</a>, <a href="#uc-06">UC-06</a>, <a href="#uc-07">UC-07</a>, <a href="#uc-08">UC-08</a>, <a href="#uc-09">UC-09</a>, <a href="#uc-10">UC-10</a>, <a href="#uc-11">UC-11</a>, <a href="#uc-12">UC-12</a></td><td><a href="#nfr-06">Target and verification</a></td><td>Not verified</td></tr>
+<tr><td><a href="#nfr-07">NFR-07</a></td><td><a href="#uc-01">UC-01</a>, <a href="#uc-03">UC-03</a>, <a href="#uc-04">UC-04</a>, <a href="#uc-08">UC-08</a>, <a href="#uc-13">UC-13</a></td><td><a href="#nfr-07">Target and verification</a></td><td>Not verified</td></tr>
+<tr><td><a href="#nfr-08">NFR-08</a></td><td><a href="#uc-10">UC-10</a>, <a href="#uc-11">UC-11</a>, <a href="#uc-12">UC-12</a></td><td><a href="#nfr-08">Target and verification</a></td><td>Not verified</td></tr>
+<tr><td><a href="#nfr-09">NFR-09</a></td><td><a href="#uc-01">UC-01</a>, <a href="#uc-09">UC-09</a>, <a href="#uc-12">UC-12</a>, <a href="#uc-13">UC-13</a></td><td><a href="#nfr-09">Target and verification</a></td><td>Not verified</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="glossary">12. Glossary</h2>
+<div class="table-wrap" role="region" aria-label="Glossary" tabindex="0">
+<table>
+<thead><tr><th scope="col">Term</th><th scope="col">Meaning</th></tr></thead>
+<tbody>
+<tr><td>Project</td><td>Authorization boundary for agents, traces, knowledge, policies, and evaluations.</td></tr>
+<tr><td>Trace</td><td>One agent execution with parent-child spans and an explicit completeness state.</td></tr>
+<tr><td>Policy / workflow version</td><td>Immutable evaluation input identifying the rules applicable to a run.</td></tr>
+<tr><td>Candidate finding</td><td>Suspected failure awaiting sufficient evidence or validation.</td></tr>
+<tr><td>Confirmed finding</td><td>Validated failure with resolvable, authorized evidence references.</td></tr>
+<tr><td>Review decision</td><td>Human assessment attached to, rather than overwriting, a finding.</td></tr>
+<tr><td>Evaluation run</td><td>Versioned set of trace-based results for a specific candidate, dataset, and evaluator configuration.</td></tr>
+<tr><td>Baseline</td><td>Pinned comparison run or approved agent version evaluated under compatible conditions.</td></tr>
+<tr><td>Gate result</td><td><code>PASS</code>, <code>FAIL</code>, or <code>ERROR</code>; pending work has a separate nonterminal state.</td></tr>
+<tr><td>Outcome / behavioral result</td><td>Outcome states whether the task completed; behavior states whether observed actions satisfy configured requirements. Neither substitutes for the other.</td></tr>
+<tr><td>Span / trajectory</td><td>A span records one operation. A trajectory is the ordered, related sequence of actions in an agent run.</td></tr>
+<tr><td>COMPLETE / PARTIAL / OPEN</td><td>Trace completeness states: complete under the declared contract, known to be incomplete, or still open for completion. They are separate from processing status.</td></tr>
+<tr><td>Processing state</td><td>Accepted, queued, analyzing, completed, partial, or error visibility for asynchronous work; it does not by itself describe agent behavior.</td></tr>
+<tr><td>INCONCLUSIVE</td><td>An affected check lacks enough evidence or decidable applicability to establish its result. Required incomplete checks cannot imply a passing gate.</td></tr>
+<tr><td>PASS / FAIL / ERROR / pending</td><td>PASS: all gate rules verifiably satisfied. FAIL: a trustworthy complete evaluation breaches a rule. ERROR: no trustworthy decision can be produced. Pending: work is nonterminal.</td></tr>
+<tr><td>CONFIRMED / DISMISSED / NEEDS_REVIEW</td><td>Human review states attached as annotations. They do not overwrite machine findings or automatically change gate eligibility.</td></tr>
+<tr><td>CI / M2M / OIDC / PKCE</td><td>Continuous integration; machine-to-machine authentication; OpenID Connect; Proof Key for Code Exchange for human sign-in.</td></tr>
+<tr><td>OpenTelemetry / OTLP</td><td>Telemetry conventions and the OpenTelemetry Protocol used to export agent execution spans.</td></tr>
+<tr><td>Semantic critic / RCA</td><td>A focused model-assisted evaluator; root-cause analysis explaining validated findings while labeling uncertainty and hypotheses.</td></tr>
+<tr><td>Evidence validator</td><td>An independent check of source identifiers, versions, values, relationships, metrics, and access before confirming claims.</td></tr>
+<tr><td>Projection / idempotency / outbox</td><td>A rebuildable derived view; safe repetition without duplicate effects; a durable job-publication record used to recover delivery.</td></tr>
+<tr><td>Deterministic / statistical check</td><td>A rule-based check with stable results for identical inputs; a measurement-based detector comparing usage or baseline distributions.</td></tr>
+<tr><td>p95 / SLO</td><td>The 95th percentile of measured latency; a service-level objective. Draft p95 targets are not production guarantees.</td></tr>
+<tr><td>WRONG_TOOL / INVALID_ARGUMENT</td><td>A tool unsuitable for the task, or an invocation that violates a schema, permitted range, or observed domain constraint.</td></tr>
+<tr><td>ACTION_LOOP / RETRIEVAL_LOOP</td><td>Repeated action sequences, or retrievals that repeat evidence without sufficient progress after permitted retries and state changes are considered.</td></tr>
+<tr><td>NO_PROGRESS / INEFFICIENT_TRAJECTORY</td><td>Additional efficiency finding types for insufficient progress or unnecessary work; semantic expansion may follow the MVP.</td></tr>
+<tr><td>POLICY_VIOLATION</td><td>A validated breach of an applicable versioned policy, including a missing required approval where trace completeness supports the claim.</td></tr>
+<tr><td>MVP / first complete slice</td><td>The initial product scope / the integrated local demonstration spanning ingestion, analysis, investigation, comparison, and a CI gate.</td></tr>
+<tr><td>Auth0 / Traefik Hub / FastAPI</td><td>Planned identity provider, API gateway, and application API framework.</td></tr>
+<tr><td>PostgreSQL / Redis / Qdrant / Neo4j / LangGraph</td><td>Planned authoritative database, work queue, semantic index, graph projection, and semantic-critic orchestration framework.</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="references">13. References</h2>
+<div class="table-wrap" role="region" aria-label="References" tabindex="0">
+<table>
+<thead><tr><th scope="col">Document</th><th scope="col">Version / status used</th><th scope="col">Location</th></tr></thead>
+<tbody>
+<tr><td>AgentProof README</td><td>Workspace copy read 27 September 2026; architecture and implementation plan; no release version specified</td><td><a href="../README.md">README.md</a></td></tr>
+<tr><td>AgentProof use case specification</td><td>Draft dated 27 September 2026; source for UC-01 through UC-13, shared rules, and acceptance scenarios</td><td><a href="../USECASE_SPECIFICATION.md">USECASE_SPECIFICATION.md</a></td></tr>
+<tr><td>HTML use case template</td><td>Original unversioned template supplied in this location; layout and section structure adapted for this draft</td><td>docs/USECASE_SPECIFICATION.html (this document replaces the template)</td></tr>
+</tbody>
+</table>
+</div>
+<footer><hr><p>AgentProof · AP-UC-001 · Version 0.1 · Draft · 27 September 2026</p><p><a href="#contents">Back to contents</a></p></footer>
+</main>
+</body>
+</html>
