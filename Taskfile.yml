@@ -1,0 +1,142 @@
+# AgentProof task runner (https://taskfile.dev). Run `task` to list tasks.
+version: '3'
+
+# Same secrets for the Docker stack and the natively-run backend.
+dotenv: ['docker/.env']
+
+vars:
+  COMPOSE: docker compose -f docker/docker-compose.yml
+  INFRA: postgres redis qdrant neo4j
+  API_URL: http://localhost:8000/api # dev:frontend target; http://localhost/api = Dockerized backend
+  NULL: '{{if eq OS "windows"}}NUL{{else}}/dev/null{{end}}' # for curl -o (native curl.exe on Windows)
+
+tasks:
+  default:
+    cmds: [task --list]
+    silent: true
+
+  env:
+    desc: Create docker/.env from docker/.env.example if missing
+    cmds: [cp docker/.env.example docker/.env]
+    status: [test -f docker/.env]
+
+  # ---------------------------------------------------------------- Docker ---
+  up:
+    desc: Build and start the whole system in Docker, then wait until the API is ready
+    deps: [env]
+    cmds:
+      - '{{.COMPOSE}} up -d --build'
+      - task: health
+
+  up:*:
+    desc: 'Start one component in Docker with its dependencies, e.g. task up:backend (traefik|backend|frontend|postgres|redis|qdrant|neo4j)'
+    deps: [env]
+    cmds: ['{{.COMPOSE}} up -d --build {{index .MATCH 0}}']
+
+  infra:
+    desc: Start only the datastores (postgres, redis, qdrant, neo4j) and wait until healthy
+    deps: [env]
+    cmds: ['{{.COMPOSE}} up -d --wait {{.INFRA}}']
+
+  down:
+    desc: Stop the system (keeps data volumes)
+    cmds: ['{{.COMPOSE}} down']
+
+  reset:
+    desc: Wipe data volumes and start again (re-runs 01_init.sql and 02_seed.sql)
+    prompt: This deletes all local database, Redis, Qdrant and Neo4j data. Continue?
+    cmds:
+      - '{{.COMPOSE}} down -v'
+      - task: up
+
+  uninstall:
+    desc: Remove everything from Docker - containers, network, data volumes and images
+    prompt: This removes all AgentProof containers, volumes (data) and images. Continue?
+    cmds: ['{{.COMPOSE}} down -v --rmi all --remove-orphans']
+
+  ps:
+    desc: Show service status
+    cmds: ['{{.COMPOSE}} ps']
+
+  logs:
+    desc: 'Follow logs, optionally for one service: task logs -- backend'
+    cmds: ['{{.COMPOSE}} logs -f {{.CLI_ARGS}}']
+
+  health:
+    desc: Wait until the API behind Traefik reports ready
+    cmds:
+      - curl -fs --retry 30 --retry-delay 2 --retry-all-errors http://localhost/health/ready
+      - echo
+
+  # -------------------------------------------------------- Native (no Docker) ---
+  install:
+    desc: Install backend (uv) and frontend (pnpm) dependencies
+    cmds:
+      - cmd: uv sync
+        dir: backend
+      - cmd: pnpm install --frozen-lockfile
+        dir: frontend
+
+  dev:backend:
+    desc: Run the API natively with reload on :8000, against the Dockerized datastores
+    deps: [infra]
+    dir: backend
+    env:
+      DATABASE_URL: postgresql+asyncpg://agentproof:{{.POSTGRES_PASSWORD}}@localhost:5432/agentproof
+      REDIS_URL: redis://:{{.REDIS_PASSWORD}}@localhost:6379/0
+      QDRANT_URL: http://localhost:6333
+      NEO4J_URI: bolt://localhost:7687
+      OLLAMA_BASE_URL: http://localhost:11434
+    cmds: [uv run uvicorn api.main:app --app-dir src --reload --port 8000]
+
+  dev:frontend:
+    desc: 'Run the Vite dev server natively on :5173 (API_URL=http://localhost/api to use the Dockerized backend)'
+    dir: frontend
+    env:
+      VITE_API_URL: '{{.API_URL}}'
+    cmds: [pnpm dev]
+
+  dev:
+    desc: Run backend and frontend natively in parallel (datastores in Docker)
+    deps: [dev:backend, dev:frontend]
+
+  # ------------------------------------------------------------------ Tests ---
+  test:
+    desc: Run backend and frontend tests
+    cmds:
+      - task: test:backend
+      - task: test:frontend
+
+  test:backend:
+    desc: 'Backend: ruff lint + format check, pytest'
+    dir: backend
+    cmds:
+      - uv run ruff check src tests
+      - uv run ruff format --check src tests
+      - uv run pytest -q
+
+  test:frontend:
+    desc: 'Frontend: eslint, vitest, type-check + build'
+    dir: frontend
+    cmds:
+      - pnpm lint
+      - pnpm test
+      - pnpm build
+
+  test:smoke:
+    desc: Start the whole system in Docker and check API, auth, SPA and seeded data
+    deps: [up]
+    cmds:
+      - test "$(curl -s -o {{.NULL}} -w '%{http_code}' http://localhost/api/v1/me)" = 401
+      - curl -fsS -o {{.NULL}} http://localhost:${FRONTEND_PORT:-3000}/
+      - >-
+        {{.COMPOSE}} exec -T postgres psql -U agentproof -Atc
+        "SELECT count(*) FROM findings WHERE type = 'POLICY_VIOLATION' AND status = 'CONFIRMED'"
+        | grep -qx 1
+      - echo "smoke OK"
+
+  test:all:
+    desc: Unit tests, then Docker smoke tests
+    cmds:
+      - task: test
+      - task: test:smoke
