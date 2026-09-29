@@ -36,7 +36,7 @@ def setup_logging(level: str) -> None:
             "loggers": {
                 "uvicorn": {"handlers": [], "propagate": True},
                 "uvicorn.error": {"handlers": [], "propagate": True},
-                # replaced by the request-log middleware in api.main
+                # replaced by the request-log middleware in __main__
                 "uvicorn.access": {"handlers": [], "propagate": False},
             },
         }

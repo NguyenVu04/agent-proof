@@ -87,7 +87,7 @@ tasks:
       QDRANT_URL: http://localhost:6333
       NEO4J_URI: bolt://localhost:7687
       OLLAMA_BASE_URL: http://localhost:11434
-    cmds: [uv run uvicorn api.main:app --app-dir src --reload --port 8000]
+    cmds: [uv run python src/__main__.py --reload]
 
   dev:frontend:
     desc: 'Run the Vite dev server natively on :5173 (API_URL=http://localhost/api to use the Dockerized backend)'

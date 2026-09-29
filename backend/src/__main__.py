@@ -1,21 +1,19 @@
-import asyncio
 import logging
 import re
+import sys
 import time
 import uuid
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
 from neo4j import AsyncGraphDatabase
 from qdrant_client import AsyncQdrantClient
 from redis.asyncio import Redis
-from sqlalchemy import text
 
+from api import auth, health
 from core.config import settings
 from core.logging import request_id_var, setup_logging
-from core.security import CurrentPrincipal
 from infrastructure.db import engine
 
 setup_logging(settings.LOG_LEVEL)
@@ -112,42 +110,21 @@ async def request_context(request: Request, call_next):
     return response
 
 
-@app.get("/health/live", tags=["health"])
-async def live() -> dict[str, str]:
-    return {"status": "ok"}
+app.include_router(health.router)
+app.include_router(auth.router)
 
 
-@app.get("/health/ready", tags=["health"])
-async def ready(request: Request) -> JSONResponse:
-    s = request.app.state
+if __name__ == "__main__":
+    import uvicorn
 
-    async def postgres():
-        async with engine.connect() as conn:
-            await conn.execute(text("SELECT 1"))
-
-    checks = {
-        "postgres": postgres(),
-        "redis": s.redis.ping(),
-        "qdrant": s.qdrant.get_collections(),
-        "neo4j": s.neo4j.verify_connectivity(),
-    }
-    results = await asyncio.gather(
-        *(asyncio.wait_for(c, timeout=3) for c in checks.values()), return_exceptions=True
+    # Run as a script (`python src/__main__.py`), not `python src`: the reload worker
+    # re-imports "__main__" by file path, which multiprocessing skips for package mains.
+    uvicorn.run(
+        "__main__:app",
+        host="0.0.0.0",
+        port=8000,
+        reload="--reload" in sys.argv,
+        proxy_headers=True,
+        forwarded_allow_ips="*",
+        access_log=False,
     )
-    status = {
-        name: "ok" if not isinstance(r, BaseException) else f"error: {type(r).__name__}"
-        for name, r in zip(checks, results)
-    }
-    healthy = all(v == "ok" for v in status.values())
-    if not healthy:
-        logger.warning("readiness failed", extra={"dependencies": status})
-    return JSONResponse({"ready": healthy, "dependencies": status}, 200 if healthy else 503)
-
-
-@app.get("/api/v1/me", tags=["auth"])
-async def me(principal: CurrentPrincipal) -> dict:
-    return {
-        "sub": principal.sub,
-        "scopes": sorted(principal.scopes),
-        "is_machine": principal.is_machine,
-    }

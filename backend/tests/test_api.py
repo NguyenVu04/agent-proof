@@ -1,6 +1,10 @@
+import runpy
+from pathlib import Path
+
 from fastapi.testclient import TestClient
 
-from api.main import app
+# A module named __main__ can't be imported, so load it by path.
+app = runpy.run_path(str(Path(__file__).parents[1] / "src" / "__main__.py"))["app"]
 
 
 def test_api_smoke():
