@@ -117,8 +117,9 @@ app.include_router(auth.router)
 if __name__ == "__main__":
     import uvicorn
 
-    # Run as a script (`python src/__main__.py`), not `python src`: the reload worker
-    # re-imports "__main__" by file path, which multiprocessing skips for package mains.
+    # Run as a script (`python src/main.py`): "__main__:app" reuses this already-loaded
+    # module instead of importing main.py a second time; the reload worker re-imports it
+    # by file path.
     uvicorn.run(
         "__main__:app",
         host="0.0.0.0",

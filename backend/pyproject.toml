@@ -33,3 +33,5 @@ line-length = 100
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
+# Default run is the unit tier; integration needs datastores (task test:backend:integration).
+testpaths = ["tests/unit"]

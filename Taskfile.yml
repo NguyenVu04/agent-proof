@@ -81,13 +81,13 @@ tasks:
     desc: Run the API natively with reload on :8000, against the Dockerized datastores
     deps: [infra]
     dir: backend
-    env:
+    env: &native_env # reused by test:backend:integration
       DATABASE_URL: postgresql+asyncpg://agentproof:{{.POSTGRES_PASSWORD}}@localhost:5432/agentproof
       REDIS_URL: redis://:{{.REDIS_PASSWORD}}@localhost:6379/0
       QDRANT_URL: http://localhost:6333
       NEO4J_URI: bolt://localhost:7687
       OLLAMA_BASE_URL: http://localhost:11434
-    cmds: [uv run python src/__main__.py --reload]
+    cmds: [uv run python src/main.py --reload]
 
   dev:frontend:
     desc: 'Run the Vite dev server natively on :5173 (API_URL=http://localhost/api to use the Dockerized backend)'
@@ -108,12 +108,19 @@ tasks:
       - task: test:frontend
 
   test:backend:
-    desc: 'Backend: ruff lint + format check, pytest'
+    desc: 'Backend: ruff lint + format check, pytest (unit tier)'
     dir: backend
     cmds:
       - uv run ruff check src tests
       - uv run ruff format --check src tests
       - uv run pytest -q
+
+  test:backend:integration:
+    desc: 'Backend: pytest integration tier against the Dockerized datastores'
+    deps: [infra]
+    dir: backend
+    env: *native_env
+    cmds: [uv run pytest -q tests/integration]
 
   test:frontend:
     desc: 'Frontend: eslint, vitest, type-check + build'
@@ -136,7 +143,8 @@ tasks:
       - echo "smoke OK"
 
   test:all:
-    desc: Unit tests, then Docker smoke tests
+    desc: Unit tests, backend integration tests, then Docker smoke tests
     cmds:
       - task: test
+      - task: test:backend:integration
       - task: test:smoke

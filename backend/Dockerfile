@@ -26,4 +26,4 @@ USER app
 EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/live', timeout=2)"
-CMD ["python", "src/__main__.py"]
+CMD ["python", "src/main.py"]
