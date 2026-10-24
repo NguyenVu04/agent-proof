@@ -47,5 +47,10 @@ docker/data/
 .DS_Store
 Thumbs.db
 
-# Claude Code local settings
+# AI agents
+.claude/settings.json
 .claude/settings.local.json
+CLAUDE.md
+CLAUDE.local.md
+AGENTS.md
+.codex/
