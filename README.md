@@ -61,18 +61,14 @@ flowchart TD
     T["Agent telemetry"] --> G
     G --> API["Application API"]
     G --> ING["Ingestion API"]
-    ING --> P[(PostgreSQL)]
+    ING --> P[(PostgreSQL + pgvector)]
     ING --> Q[(Redis queue)]
     Q --> W["Analysis workers"]
     W --> P
-    W --> V[(Qdrant)]
-    W --> N[(Neo4j)]
     API --> P
-    API --> V
-    API --> N
 ```
 
-PostgreSQL is authoritative for canonical business data. Qdrant indexes semantic representations; Neo4j projects trajectory and evidence relationships. Both projections must be rebuildable from versioned records in PostgreSQL. Redis coordinates asynchronous work. The API and ingestion entrypoints share one domain package but can scale independently.
+PostgreSQL is authoritative for canonical business data; semantic embeddings live in it through pgvector and must be rebuildable from versioned records. From Phase 2, ClickHouse stores spans and usage metrics for production volume; PostgreSQL keeps the control plane and every decision record (use case specification, C-01). Redis coordinates asynchronous work. The API and ingestion entrypoints share one domain package but can scale independently.
 
 ### Components
 
@@ -83,7 +79,7 @@ PostgreSQL is authoritative for canonical business data. Qdrant indexes semantic
 | Ingestion API | Authenticate, validate, redact, normalize, persist, enqueue | `apps/ingestion/` |
 | Workers | Rules, statistics, retrieval, critics, evidence validation, RCA, evaluation | `apps/worker/`, `src/agentproof/` |
 | Domain core | Canonical trace, policy, finding, evaluation models and ports | `src/agentproof/core/` |
-| Infrastructure adapters | PostgreSQL, Qdrant, Neo4j, Redis, Auth0, LLM, telemetry | `src/agentproof/infrastructure/` |
+| Infrastructure adapters | PostgreSQL, ClickHouse, Redis, Auth0, LLM, telemetry | `src/agentproof/infrastructure/` |
 
 The canonical hierarchy includes agent, LLM, tool, retrieval, handoff, guardrail, and approval spans. Framework adapters map source traces to this model. `core/` depends on interfaces rather than SQLAlchemy, vendor SDKs, or LangGraph.
 
@@ -91,7 +87,7 @@ The canonical hierarchy includes agent, LLM, tool, retrieval, handoff, guardrail
 
 1. Ingestion persists a normalized trace and a durable analysis-job record in PostgreSQL, then arranges delivery to workers. The queue message identifies the job; it is not the trace database. The enqueue boundary needs a transactional outbox or equivalent recovery sweep so an accepted trace cannot be silently stranded between database commit and queue publication.
 2. Deterministic checks validate tool arguments, ordering, approvals, explicit policy conditions, and repeated actions. Statistical detectors compare latency, token use, cost, and baseline distributions.
-3. Candidate findings retrieve policy clauses, specifications, similar incidents, and evidence summaries from Qdrant with project and version filters. Neo4j supports path and relationship queries. Source identifiers refer back to authoritative, versioned records.
+3. Candidate findings retrieve policy clauses, specifications, similar incidents, and evidence summaries through pgvector with project and version filters. Trajectory paths are derived from the span tree. Source identifiers refer back to authoritative, versioned records.
 4. LangGraph coordinates focused trajectory, policy, and efficiency critics only where semantic judgment helps. Each critic receives a bounded, redacted evidence package and returns a structured judgment with evidence IDs and uncertainty.
 5. An independent evidence validator checks referenced spans, source versions, graph relationships, values, and reproducible metrics. Unsupported judgments remain unconfirmed. RCA synthesis uses validated findings and labels observations, deterministic conclusions, semantic judgments, and hypotheses separately.
 
@@ -105,13 +101,12 @@ Analysis retries must be idempotent. A missing index or graph projection should 
 | Traefik Hub API Gateway | Edge routing and coarse JWT/scope checks | Public API entry unavailable |
 | PostgreSQL | Authoritative traces, metadata, policies, findings, evaluations | Ingestion and core application unavailable |
 | Redis | Analysis and evaluation jobs, retries | New analysis delayed; persisted traces remain recoverable |
-| Qdrant | Filtered semantic search | Semantic review degraded or evaluation marked `ERROR`, according to gate policy |
-| Neo4j | Trajectory and evidence graph projection | Graph reasoning degraded or evaluation marked `ERROR`, according to gate policy |
+| ClickHouse (Phase 2) | Span and usage-metric storage at production volume | Production views and online evaluation unavailable; release gates do not depend on it |
 | LLM provider | Semantic critics and RCA | Deterministic findings remain available; required semantic gates return `ERROR` |
 
 ## Getting started
 
-There is currently no implementation repository or verified bootstrap command in the supplied materials. The first implementation milestone should add a pinned development toolchain, `docker-compose.yml`, `.env.example`, migration scripts, and a tested startup command. The intended local stack is Traefik, web, API, ingestion, worker, PostgreSQL, Redis, Qdrant, Neo4j, and an OpenTelemetry Collector.
+There is currently no implementation repository or verified bootstrap command in the supplied materials. The first implementation milestone should add a pinned development toolchain, `docker-compose.yml`, `.env.example`, migration scripts, and a tested startup command. The intended local stack is Traefik, web, API, ingestion, worker, PostgreSQL (with pgvector), Redis, and an OpenTelemetry Collector; ClickHouse joins in Phase 2.
 
 A complete setup guide must then specify exact Docker/Compose, Python, and Node versions; Auth0 local configuration or a documented development identity option; secrets injection; database migration; seed data; demo trace import; and a verification request to `/health/ready`. Do not interpret the proposed endpoints in this README as evidence that those commands already work.
 
@@ -123,8 +118,6 @@ The following are **proposed configuration categories**, not implemented environ
 |---|---|---|---|
 | Database | `DATABASE_URL` | Yes | PostgreSQL connection |
 | Work queue | `REDIS_URL` | Yes | Redis connection and job delivery |
-| Vector index | `QDRANT_URL`, `QDRANT_API_KEY` | API key: yes | Qdrant access |
-| Graph projection | `NEO4J_URI`, `NEO4J_PASSWORD` | Password: yes | Neo4j access |
 | Identity | `AUTH0_ISSUER`, `AUTH0_AUDIENCE` | No | Token issuer and audience checks |
 | Semantic critics | `LLM_API_KEY`, `LLM_MODEL` | API key: yes | Model access and reproducible model selection |
 | Data handling | `TRACE_RETENTION_DAYS`, `REDACTION_POLICY` | Depends on policy | Retention and pre-persistence redaction |
@@ -170,7 +163,7 @@ agentproof/
 └── scripts/            local development and migration helpers
 ```
 
-The planned stack is Next.js and TypeScript with React Flow; FastAPI, Pydantic, SQLAlchemy 2 and Alembic; PostgreSQL, Qdrant, Neo4j and Redis; LangGraph for semantic-critic orchestration; OpenTelemetry; Docker Compose locally and Kubernetes with Helm for a later deployment. Separate entrypoints do not require separate domain codebases.
+The planned stack is Next.js and TypeScript with React Flow; FastAPI, Pydantic, SQLAlchemy 2 and Alembic; PostgreSQL with pgvector, Redis, and ClickHouse (Phase 2); LangGraph for semantic-critic orchestration; OpenTelemetry; Docker Compose locally and Kubernetes with Helm for a later deployment. Separate entrypoints do not require separate domain codebases.
 
 ### Standards and local loop
 
@@ -182,7 +175,7 @@ Use Ruff and type checking for Python, ESLint and TypeScript checks for the web 
 |---|---|---|
 | Unit | Policy predicates, argument validation, trajectory alignment, metrics, evidence references, gate logic | Pull request CI |
 | Contract | OTLP mapping, adapter normalization, stable API/event schemas | Pull request CI |
-| Integration | Ingest → persist → enqueue → worker; PostgreSQL/Qdrant/Neo4j projections; migration upgrade | Pull request CI with isolated services |
+| Integration | Ingest → persist → enqueue → worker; PostgreSQL and pgvector projections; migration upgrade | Pull request CI with isolated services |
 | End to end | Valid refund, omitted approval, wrong tool, invalid amount, retrieval loop, controlled retry, gate outcomes | Staging or test deployment |
 
 Each fixture needs expected finding types and evidence IDs. Test duplicate delivery, worker crashes, missing projections, partial traces, and fail-closed behavior for mandatory gates. A coverage threshold is not specified yet; set one only after the repository and meaningful tests exist.
@@ -220,7 +213,7 @@ Track ingestion acceptance and errors, durable-job backlog and age, worker retri
 
 Auth0 is the proposed identity provider. Browser users use OIDC Authorization Code with PKCE; collectors and CI clients use client credentials. Traefik Hub handles edge routing and token/scope checks, while FastAPI checks project membership and ownership of each requested trace or evaluation. A scope such as `traces:read` alone never grants access across projects.
 
-Redact credentials and configured sensitive fields before persistence, enforce limits on payload size and access to raw payloads, and audit privileged reads. Limit critic inputs to bounded, filtered evidence and treat retrieved text as untrusted data. Keep PostgreSQL, Redis, Qdrant, and Neo4j on private networks. TLS termination, encryption at rest, dependency scanning, secret rotation, and vulnerability reporting procedures need implementation and operational review before any real customer data is ingested.
+Redact credentials and configured sensitive fields before persistence, enforce limits on payload size and access to raw payloads, and audit privileged reads. Limit critic inputs to bounded, filtered evidence and treat retrieved text as untrusted data. Keep PostgreSQL, Redis, and ClickHouse on private networks. TLS termination, encryption at rest, dependency scanning, secret rotation, and vulnerability reporting procedures need implementation and operational review before any real customer data is ingested.
 
 ## Compliance and data handling
 
@@ -256,7 +249,7 @@ Architectural decisions that change the authoritative store, security boundary, 
 | Phase | Deliverable | Status |
 |---|---|---|
 | 1. Trace foundation | Canonical model, OTLP ingestion, PostgreSQL, rules, basic explorer | Planned |
-| 2. Behavioral forensics | Qdrant and Neo4j projections, critics, validator, RCA, evidence UI | Planned |
+| 2. Behavioral forensics and production observability | pgvector retrieval, critics, validator, RCA, evidence UI; ClickHouse span store, online evaluation, sessions, usage dashboards | Planned |
 | 3. Release assurance | Versioned datasets, baseline comparison, gate API and CI integration | Planned |
 | 4. Production hardening | Additional adapters, tenant isolation, operations, scale testing | Planned |
 

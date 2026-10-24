@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="description" content="AgentProof draft use case specification: trace ingestion, evidence-backed behavioral analysis, human review, and CI regression gates.">
+<meta name="description" content="AgentProof draft use case specification: agent observability with evidence-validated behavioral findings, versioned policies, human review, and CI regression gates.">
 <title>AgentProof — Use Case Specification</title>
 <style>
   :root {
@@ -288,25 +288,25 @@
 <main>
 <header class="doc">
   <h1>AgentProof — Use Case Specification</h1>
-  <p class="subtitle">AP-UC-001 · Version 0.1 · Draft · 27 September 2026</p>
+  <p class="subtitle">AP-UC-001 · Version 0.2 · Draft · 24 October 2026</p>
 </header>
 <div class="note" data-marker="DOCUMENT STATUS">
-  <p>This document specifies intended product behavior. It does not certify an implemented feature, working API, deployment, or measured service level. It is based on the project README and the use case specification dated 27 September 2026.</p>
+  <p>This document specifies intended product behavior. It does not certify an implemented feature, working API, deployment, or measured service level. Version 0.2 revises the 27 September 2026 draft against the repository as of 24 October 2026 and a survey of comparable products (section 3.1); the decisions behind the changes are recorded in section 7.4.</p>
 </div>
 <h2 id="document-control">1. Document control</h2>
 <div class="table-wrap" role="region" aria-label="Document control" tabindex="0">
 <table>
 <thead><tr><th scope="col">Field</th><th scope="col">Value</th></tr></thead>
 <tbody>
-<tr><td>Document ID / version</td><td>AP-UC-001 / 0.1 (identifiers assigned to this HTML draft)</td></tr>
+<tr><td>Document ID / version</td><td>AP-UC-001 / 0.2 (identifiers assigned to this HTML draft)</td></tr>
 <tr><td>Project</td><td>AgentProof</td></tr>
 <tr><td>Status</td><td>Draft; no approval recorded</td></tr>
-<tr><td>Prepared by</td><td>Codex, adapting the supplied project documents at the requester’s direction</td></tr>
+<tr><td>Prepared by</td><td>0.1: Codex, adapting the supplied project documents. 0.2: Claude Code, revising against the repository and a market survey at the requester’s direction; options chosen by the requester (section 7.4)</td></tr>
 <tr><td>Accountable owner / sponsor</td><td>Not assigned in the source materials</td></tr>
-<tr><td>Created / updated</td><td>27 September 2026</td></tr>
+<tr><td>Created / updated</td><td>27 September 2026 / 24 October 2026</td></tr>
 <tr><td>Next review</td><td>Before first-slice acceptance; calendar date not scheduled</td></tr>
 <tr><td>Classification / distribution</td><td>No classification or distribution policy supplied; intended readers are project, engineering, review, and operations stakeholders</td></tr>
-<tr><td>Local source documents</td><td><a href="../README.md">README.md</a> and <a href="../USECASE_SPECIFICATION.md">USECASE_SPECIFICATION.md</a>; no remote source-of-record URL supplied</td></tr>
+<tr><td>Local source documents</td><td><a href="../README.md">README.md</a>, <code>database/postgresql/01_init.sql</code> and <code>02_seed.sql</code>, <code>docker/docker-compose.yml</code>; no remote source-of-record URL supplied. The earlier source <code>USECASE_SPECIFICATION.md</code> is not in the repository; this HTML file is now the only copy.</td></tr>
 </tbody>
 </table>
 </div>
@@ -316,6 +316,7 @@
 <thead><tr><th scope="col">Version</th><th scope="col">Date</th><th scope="col">Change</th><th scope="col">Approval</th></tr></thead>
 <tbody>
 <tr><td>0.1</td><td>2026-09-27</td><td>Populate the HTML template with all 13 AgentProof use cases, derived requirements, traceability, and release acceptance.</td><td>Not approved</td></tr>
+<tr><td>0.2</td><td>2026-10-24</td><td>Reposition as an agent observability platform with an evidence-validated behavioral layer; add market landscape (3.1) and decision register (7.4); replace Qdrant/Neo4j with pgvector and ClickHouse; correct the edge-auth constraint to match the repository; add repeated trials (pass^k), advisory semantic critics, tool-spec import, CI client, detector-quality NFR; add UC-14–UC-16 (Phase 2).</td><td>Not approved</td></tr>
 </tbody>
 </table>
 </div>
@@ -339,19 +340,42 @@
 </ol></nav>
 <h2 id="overview">3. Overview</h2>
 <p>An AI agent can complete a task while skipping approval, choosing the wrong tool, repeating retrievals, or relying on unsupported evidence. Evaluating only the final answer can miss these execution failures.</p>
-<p>AgentProof collects execution traces, checks tool use and policies, compares actual actions with expected workflows, and links confirmed findings to inspectable evidence. Developers investigate individual runs; reviewers assess findings; evaluation engineers and CI systems compare versions before a release.</p>
-<p>Outcome success and behavioral correctness remain separate. The initial reference domain is customer support: a successful refund can still violate an approval requirement. Other domains need their own tool specifications, policies, and evaluation data.</p>
-<blockquote class="positioning"><span class="label">Positioning statement</span>For teams releasing AI agents, AgentProof is a behavioral evaluation system that connects execution failures to validated evidence and release decisions. It extends final-answer evaluation with trace-level policy, workflow, and tool-use checks.</blockquote>
+<p>AgentProof is an agent observability platform. It collects execution traces from evaluation runs and from production, checks tool use and policies, compares actual actions with expected workflows, and links confirmed findings to inspectable evidence. Developers investigate individual runs and sessions; reviewers assess findings; evaluation engineers and CI systems compare versions before a release; operators watch behavior, usage, and cost in production.</p>
+<p>The behavioral layer is what sets it apart. The same deterministic, completeness-aware detectors run on CI evaluations, where they gate releases, and on sampled production traffic, where they surface drift. Model-assisted judgments help, but they never become facts without validated evidence. Outcome success and behavioral correctness remain separate. The initial reference domain is customer support: a successful refund can still violate an approval requirement. Other domains need their own tool specifications, policies, and evaluation data.</p>
+<blockquote class="positioning"><span class="label">Positioning statement</span>For teams building and operating AI agents, AgentProof is an agent observability platform whose behavioral findings are verified against trace evidence and versioned policies. Most observability tools score traces with LLM judges whose citations are never checked. AgentProof evaluates conditional and ordered policies deterministically, refuses to call a run clean when the trace is incomplete, and uses one rule set both to gate releases and to monitor production.</blockquote>
+<h3 id="landscape">3.1 Market landscape and differentiation</h3>
+<p>Survey of comparable offerings as of October 2026 (sources in <a href="#references">section 13</a>). Vendor capability claims were taken from vendor documentation and were not independently tested.</p>
+<div class="table-wrap" role="region" aria-label="Market landscape" tabindex="0">
+<table>
+<thead><tr><th scope="col">Category</th><th scope="col">Representative offerings</th><th scope="col">Strong at</th><th scope="col">Gap AgentProof targets</th></tr></thead>
+<tbody>
+<tr><td>Observability and evaluation platforms</td><td>LangSmith (agentevals), Langfuse (acquired by ClickHouse, January 2026), Arize Phoenix, Braintrust, MLflow 3, Galileo (acquired by Cisco, May 2026), DeepEval / Confident AI</td><td>Trace capture, datasets, LLM-as-judge scorers, reference trajectory matching, CI integration</td><td>Judge outputs are scores with reasons, not citations checked against source records. Trajectory matching is exact, in-order, or any-order, with no conditional rules such as “approval required before a refund above $500.” Policies are not versioned artifacts tied to findings. Missing data tends to be scored rather than declared inconclusive.</td></tr>
+<tr><td>Cloud-native agent evaluators</td><td>Vertex AI agent evaluation (trajectory exact / in-order / any-order match, precision, recall), Microsoft Foundry agent evaluators (Tool Call Accuracy, Task Adherence, Intent Resolution), Amazon Bedrock AgentCore Evaluations (13 built-in evaluators, preview)</td><td>Built into each platform</td><td>Tied to one platform. Mostly LLM-judged. No fail-closed gate semantics.</td></tr>
+<tr><td>Runtime policy enforcement</td><td>Amazon Bedrock AgentCore Policy (Cedar at the gateway; its documentation uses a $500 refund cap as an example), Snyk Agent Scan (Invariant Labs, acquired June 2025), NVIDIA NeMo Guardrails</td><td>Blocking an individual tool call in real time</td><td>Rules are checked per request; ordered or session-wide rules need extensions. No regression comparison between agent versions, and no release evidence. AgentProof complements enforcement rather than replacing it (<a href="#out-of-scope">section 5</a>).</td></tr>
+<tr><td>Research</td><td>AgentLTL (July 2026, first-order LTL compliance score over traces), AgentSpec (ICSE 2026, runtime rule DSL), τ-bench / τ²-bench (policy compliance scored separately from task success; pass^k consistency), TRAIL (trace error localization benchmark)</td><td>Show that deterministic procedural checks are feasible, and that consistency must be measured over repeated trials</td><td>Not products. TRAIL reports that the best model it tested localized fewer than about 11% of errors in long traces. Model-only trace judgment is therefore not reliable enough to block a release.</td></tr>
+</tbody>
+</table>
+</div>
+<p><strong>Differentiators to defend:</strong></p>
+<ul>
+<li>(1) Evidence-validated findings (<a href="#br-01">BR-01</a>, <a href="#uc-08">UC-08</a>).</li>
+<li>(2) Versioned policy-as-code with conditional and ordering rules, evaluated deterministically and linked to findings and gates (<a href="#uc-06">UC-06</a>).</li>
+<li>(3) Completeness-aware reasoning with explicit <code>INCONCLUSIVE</code> and fail-closed <code>ERROR</code> (<a href="#br-02">BR-02</a>, <a href="#br-06">BR-06</a>).</li>
+<li>(4) One rule set across CI gating and production monitoring (<a href="#uc-12">UC-12</a>, <a href="#uc-14">UC-14</a>).</li>
+</ul>
+<p><strong>Not differentiators:</strong> trace capture, dashboards, datasets, and LLM judges are expected by users of any observability product. Separating outcome from behavior (<a href="#br-05">BR-05</a>) is established practice since τ-bench; AgentProof keeps it as a rule, not as a selling point.</p>
+<p><strong>Market risk:</strong> the observability segment is consolidating into large data and security vendors. A full platform competes on breadth with well-funded incumbents. The differentiators above must therefore be visible in the first slice and must not depend on breadth.</p>
 <h2 id="goals">4. Goals</h2>
-<p>These acceptance goals are derived from the supplied first-slice criteria. The milestone is the first complete local demonstration; no delivery date or measured business baseline has been supplied.</p>
+<p>G-01 to G-04 are derived from the supplied first-slice criteria; the milestone is the first complete local demonstration. G-05 covers production observability in Phase 2. No delivery date or measured business baseline has been supplied.</p>
 <div class="table-wrap" role="region" aria-label="Product goals" tabindex="0">
 <table>
 <thead><tr><th scope="col">ID</th><th scope="col">Goal</th><th scope="col">Measure / target</th><th scope="col">When</th></tr></thead>
 <tbody>
 <tr><td>G-01</td><td>Make behavioral failures explainable</td><td>All confirmed findings in the acceptance cases resolve to authorized evidence and exact source versions.</td><td>First complete slice; date unassigned</td></tr>
-<tr><td>G-02</td><td>Detect the initial failure classes</td><td>Controlled positive and negative scenarios cover all five classes: WRONG_TOOL, INVALID_ARGUMENT, ACTION_LOOP, RETRIEVAL_LOOP, and POLICY_VIOLATION.</td><td>First complete slice; date unassigned</td></tr>
-<tr><td>G-03</td><td>Prevent promotion based on an untrustworthy evaluation</td><td>The gate blocks promotion for FAIL, ERROR, and pending work; mandatory policy limits cannot be offset by task success.</td><td>First complete slice; date unassigned</td></tr>
+<tr><td>G-02</td><td>Detect the initial failure classes with measured quality</td><td>Controlled positive and negative scenarios cover all five classes: WRONG_TOOL, INVALID_ARGUMENT, ACTION_LOOP, RETRIEVAL_LOOP, and POLICY_VIOLATION. Detector precision and recall are reported per class (<a href="#nfr-10">NFR-10</a>). NO_PROGRESS and INEFFICIENT_TRAJECTORY exist in the schema but are later expansions, not first-slice goals.</td><td>First complete slice; date unassigned</td></tr>
+<tr><td>G-03</td><td>Prevent promotion based on an untrustworthy or flaky evaluation</td><td>The gate blocks promotion for FAIL, ERROR, and pending work. Mandatory policy limits cannot be offset by task success. Results are aggregated over repeated trials per case (<a href="#br-09">BR-09</a>).</td><td>First complete slice; date unassigned</td></tr>
 <tr><td>G-04</td><td>Preserve accepted evidence and historical decisions</td><td>Recovery scenarios lose no accepted work; updates preserve original artifact versions and review history.</td><td>First complete slice; date unassigned</td></tr>
+<tr><td>G-05</td><td>Observe agent behavior in production</td><td>Sampled production traces receive the same deterministic checks as evaluations. Sessions are inspectable across turns. Usage, cost, and latency are reported by agent version, with missing data shown as missing.</td><td>Phase 2; date unassigned</td></tr>
 </tbody>
 </table>
 </div>
@@ -361,13 +385,17 @@
 <thead><tr><th scope="col">Excluded capability</th><th scope="col">Reason / boundary</th></tr></thead>
 <tbody>
 <tr><td>Hosting or executing arbitrary customer agent code</td><td>Customer CI executes cases in its own environment. AgentProof evaluates the resulting traces.</td></tr>
-<tr><td>Replacing telemetry storage or a CI service</td><td>AgentProof supplies behavioral investigation and an evaluation gate within existing workflows.</td></tr>
+<tr><td>Replacing a CI service</td><td>AgentProof supplies a gate decision and a thin client (<a href="#fr-16">FR-16</a>) that existing CI pipelines call. Agent telemetry storage <em>is</em> in scope as of version 0.2. AgentProof's own operational telemetry still goes to a separate operational backend.</td></tr>
+<tr><td>In-path runtime enforcement</td><td>AgentProof does not sit between the agent and its tools or block calls live. Enforcement products such as Cedar-based gateways cover that. AgentProof evaluates the resulting traces and reports gaps.</td></tr>
+<tr><td>Simulating end users or generating test conversations</td><td>Cases and any user simulation run in the customer's environment (for example, τ-bench-style simulators). AgentProof consumes the traces.</td></tr>
+<tr><td>Alerting and notification routing</td><td>Deferred beyond Phase 2. Production findings and metrics are visible in the UI and API first.</td></tr>
+<tr><td>Prompt management and playgrounds</td><td>Prompt and code revisions are recorded as agent-version metadata; editing and serving prompts is not provided.</td></tr>
 <tr><td>Eliminating human review of ambiguous findings</td><td>Insufficient evidence remains explicit; reviewers can annotate findings.</td></tr>
 <tr><td>Automatically rewriting prompts or agent code</td><td>The initial product reports and recommends; it does not repair agent implementations.</td></tr>
 <tr><td>Formal proof of unrestricted natural-language behavior</td><td>Semantic judgments remain evidence-dependent and carry uncertainty.</td></tr>
 <tr><td>Fine-tuning LLMs</td><td>Not part of this design.</td></tr>
 <tr><td>Retroactively stopping an already executed tool action</td><td>Analysis reports the observed action and risk; it cannot undo execution.</td></tr>
-<tr><td>Production guarantees or a released CLI</td><td>Service levels, operating procedures, and CLI commands are proposals, not verified capabilities.</td></tr>
+<tr><td>Production guarantees</td><td>Service levels and operating procedures are proposals, not verified capabilities. The CI client (<a href="#fr-16">FR-16</a>) is a first-slice requirement, not a released product.</td></tr>
 </tbody>
 </table>
 </div>
@@ -383,6 +411,7 @@
 <tr><td>Policy owner</td><td>Correct policy and workflow interpretation</td><td>Review rule applicability and reference scenarios</td></tr>
 <tr><td>Reviewer</td><td>Evidence quality and review history</td><td>Review finding decisions and auditability</td></tr>
 <tr><td>Evaluation engineer</td><td>Comparable datasets and dependable gates</td><td>Review metrics, baselines, and gate requirements</td></tr>
+<tr><td>Agent operator</td><td>Production behavior, usage, and cost of deployed agents</td><td>Review sampling, online findings, session views, and usage dashboards (Phase 2)</td></tr>
 <tr><td>Operations / security / data governance roles</td><td>Recovery, isolation, data protection, and support</td><td>Review controls before real customer data or shared operation</td></tr>
 </tbody>
 </table>
@@ -397,6 +426,7 @@
 <tr><td>Policy owner</td><td>Defines operational rules and expected workflows.</td></tr>
 <tr><td>Reviewer</td><td>Accepts, dismisses, or requests more evidence for a finding.</td></tr>
 <tr><td>Evaluation engineer</td><td>Curates test cases, baselines, and regression gates.</td></tr>
+<tr><td>Agent operator</td><td>Monitors production agents: configures sampling, inspects online findings and sessions, tracks usage and cost.</td></tr>
 <tr><td>Customer agent / OTel Collector</td><td>Exports execution telemetry using a scoped machine identity.</td></tr>
 <tr><td>CI system</td><td>Submits evaluation traces and consumes a gate decision.</td></tr>
 <tr><td>Analysis worker</td><td>Executes asynchronous checks and records results; it is an internal actor.</td></tr>
@@ -415,8 +445,10 @@
 <tbody>
 <tr><td>A-01</td><td>Customer CI can execute cases and export supported telemetry with stable identifiers.</td><td>Missing cases or spans make evaluation incomplete.</td><td>Agent developer / evaluation engineer; unverified</td></tr>
 <tr><td>A-02</td><td>Applicable tool, policy, workflow, and dataset versions are available.</td><td>Affected checks are inconclusive or erroneous.</td><td>Project administrator / policy owner; unverified</td></tr>
-<tr><td>A-03</td><td>Trace completion and relevant action intervals can be established explicitly.</td><td>Absence of an approval cannot be asserted reliably.</td><td>Agent developer; unverified</td></tr>
+<tr><td>A-03</td><td>Trace completion and relevant action intervals can be established explicitly through the AgentProof profile's completion signal (<a href="#uc-03">UC-03</a>, D7 in <a href="#decision-register">section 7.4</a>).</td><td>Absence of an approval cannot be asserted reliably.</td><td>Agent developer; unverified</td></tr>
 <tr><td>A-04</td><td>A deployment defines data classification, redaction, retention, and authorized roles before ingesting real data.</td><td>The deployment is not ready for that data.</td><td>Security / operations roles; unassigned</td></tr>
+<tr><td>A-05</td><td>A pinned version of the OpenTelemetry GenAI semantic conventions, plus AgentProof-specific attributes, can represent the required span types. The conventions are still marked Development and define no standard approval, guardrail, or trace-completion signal.</td><td>Upstream renames break adapters; approval and completion cannot be recognized without the AgentProof profile.</td><td>Engineering; unverified. Re-check at each semconv release.</td></tr>
+<tr><td>A-06</td><td>Customer CI can afford to run each case several times (<a href="#br-09">BR-09</a>).</td><td>The gate falls back to single-run results, which cannot detect flaky behavior; this must be shown as reduced confidence.</td><td>Evaluation engineer; unverified</td></tr>
 </tbody>
 </table>
 </div>
@@ -425,11 +457,19 @@
 <table>
 <thead><tr><th scope="col">ID</th><th scope="col">Constraint</th><th scope="col">Source</th></tr></thead>
 <tbody>
-<tr><td>C-01</td><td>PostgreSQL is authoritative; Qdrant and Neo4j projections must be rebuildable from versioned source records.</td><td>README: Architecture</td></tr>
-<tr><td>C-02</td><td>Auth0 provides identity; Traefik Hub performs edge checks; the application enforces project and resource authorization.</td><td>README: Security; UC-01</td></tr>
+<tr><td>C-01</td><td>Three datastores: PostgreSQL, ClickHouse, Redis.
+<ul>
+<li>PostgreSQL is authoritative for the control plane and every decision record: projects, versions, policies, findings, evidence snapshots, reviews, evaluations, and gate decisions.</li>
+<li>Embeddings live in PostgreSQL (pgvector) and are rebuildable from versioned source records.</li>
+<li>ClickHouse stores spans, raw telemetry, and usage metrics under TTL retention from Phase 2. Until then spans stay in PostgreSQL, as in the current schema.</li>
+<li>Neo4j and Qdrant are not used.</li>
+<li>No first-slice gate requirement depends on anything but PostgreSQL.</li>
+</ul></td><td>D13 in <a href="#decision-register">section 7.4</a></td></tr>
+<tr><td>C-02</td><td>Auth0 provides identity. Traefik Proxy routes requests and applies rate and body limits. FastAPI validates JWTs and enforces project and resource authorization. Version 0.1 assigned token checks to Traefik Hub; the repository uses open-source Traefik Proxy, which has no built-in JWT middleware.</td><td><code>docker/docker-compose.yml</code>; <code>backend/src/core/security.py</code>; D10</td></tr>
 <tr><td>C-03</td><td>Redis coordinates asynchronous work; accepted work requires durable delivery recovery and idempotent retries.</td><td>README: Analysis and evidence; UC-03</td></tr>
-<tr><td>C-04</td><td>LangGraph coordinates bounded semantic critics. An independent validator checks evidence before confirmation.</td><td>README: Analysis and evidence; UC-08</td></tr>
+<tr><td>C-04</td><td>LangGraph coordinates bounded semantic critics. An independent validator checks evidence before confirmation. In the first slice, semantic findings are advisory (<a href="#br-10">BR-10</a>).</td><td>README: Analysis and evidence; UC-08; D4</td></tr>
 <tr><td>C-05</td><td>Initial deployment and validation are planned locally; shared-service ownership, dates, budgets, and capacity limits remain undecided.</td><td>README: Getting started, Service levels, Governance</td></tr>
+<tr><td>C-06</td><td>The reference deployment runs critics on a local model through Ollama (<code>LLM_MODEL</code>, default <code>llama3.1</code>). Critic output is not reproducible and is not assumed to be accurate enough to block a release.</td><td><code>backend/src/core/config.py</code>; TRAIL (<a href="#references">section 13</a>)</td></tr>
 </tbody>
 </table>
 </div>
@@ -439,33 +479,111 @@
 <thead><tr><th scope="col">Decision</th><th scope="col">Proposed responsible role</th><th scope="col">Required milestone</th></tr></thead>
 <tbody>
 <tr><td>Appoint document owner, sponsor, approvers, and support contacts.</td><td>Project owner; not appointed</td><td>Before approval or shared-service operation</td></tr>
-<tr><td>Specify trace completion contract, ingestion limits, and timeout budgets.</td><td>Engineering / evaluation roles; not appointed</td><td>Before implementation acceptance</td></tr>
-<tr><td>Pin gate thresholds, permitted baseline differences, review eligibility rules, and zero-baseline handling.</td><td>Evaluation engineer / policy owner</td><td>Before accepting a release gate</td></tr>
+<tr><td>Specify the AgentProof profile: the pinned semconv version, <code>agentproof.*</code> attributes, the completion signal, ingestion limits, and timeout budgets.</td><td>Engineering / evaluation roles; not appointed</td><td>Before implementation acceptance</td></tr>
+<tr><td>Pin gate thresholds, permitted baseline differences, review eligibility rules, zero-baseline handling, the default trial count <em>k</em>, and the pass^k threshold.</td><td>Evaluation engineer / policy owner</td><td>Before accepting a release gate</td></tr>
+<tr><td>Choose production sampling rates, ClickHouse TTLs, the evidence-snapshot retention period, and the ingestion throughput and dashboard latency targets (<a href="#nfr-11">NFR-11</a>).</td><td>Engineering / operations roles; not appointed</td><td>Before Phase 2 acceptance</td></tr>
+<tr><td>Decide when spans move from PostgreSQL to ClickHouse, and how existing span rows migrate.</td><td>Engineering; not appointed</td><td>Before Phase 2 implementation</td></tr>
 <tr><td>Choose retention durations, storage region, applicable compliance obligations, raw-data rules, and any hold policy.</td><td>Security / data governance roles; not appointed</td><td>Before ingesting real customer data</td></tr>
 <tr><td>Define normal-trace size, test hardware, concurrency, capacity, accessibility acceptance, and production SLOs.</td><td>Engineering / operations roles; not appointed</td><td>Before validating targets or production rollout</td></tr>
 </tbody>
 </table>
 </div>
 <p>Calendar due dates are not established. These milestone boundaries make the unresolved decisions visible without inventing commitments.</p>
+<h3 id="decision-register">7.4 Decision register</h3>
+<p>Decisions taken for version 0.2. “Requester” marks an option the requester chose explicitly. “Default” marks the recommended option, adopted because the requester accepted the plan without changing it. Any row can be reopened; changing one creates a new document version.</p>
+<div class="table-wrap" role="region" aria-label="Decision register" tabindex="0">
+<table>
+<thead><tr><th scope="col">ID</th><th scope="col">Decision</th><th scope="col">Chosen option</th><th scope="col">Alternatives considered and trade-offs</th></tr></thead>
+<tbody>
+<tr><td>D1</td><td>Product positioning</td><td><strong>Full agent observability platform</strong> with the evidence-validated behavioral layer as its differentiator; production scope covers online evaluation, sessions, and usage dashboards (Requester). Trade-off: a crowded, consolidating market and a large scope.</td><td>
+<ul>
+<li>Evidence-backed release gate that complements existing observability tools: narrower scope and a clear buyer, but depends on customers running cases in CI.</li>
+<li>Runtime enforcement: sits in the request path (latency, availability) and competes directly with AWS and Snyk.</li>
+<li>Audit-evidence angle (EU AI Act Articles 12 and 14; high-risk obligations deferred to 2 December 2027): useful later, but risks being read as a compliance claim.</li>
+</ul></td></tr>
+<tr><td>D2</td><td>Policy and workflow specification format</td><td><strong>Versioned JSON predicate schema</strong>, formalizing what <code>02_seed.sql</code> already uses (<code>{"tool","arg","op","value"}</code> conditions, <code>prior_steps</code>, ordered and forbidden transitions) (Default). Deterministic, easy to validate. It cannot express repetition counts or data flow between steps.</td><td>
+<ul>
+<li>Temporal-logic DSL in the style of AgentLTL: more expressive, but harder to author and costlier to implement.</li>
+<li>Cedar: interoperates with AgentCore, but Cedar authorizes individual requests, so ordering rules need custom extensions.</li>
+<li>Optional add-on for any format: an LLM drafts rules from natural-language policy text, and a person approves them before publication.</li>
+</ul></td></tr>
+<tr><td>D3</td><td>Agent nondeterminism</td><td><strong><em>k</em> trials per case</strong>, reporting pass^k and per-case consistency. For a mandatory policy, a violation in any trial means FAIL (Requester). CI cost grows by a factor of <em>k</em>.</td><td>
+<ul>
+<li>One trial per case with cross-case statistics: cheaper, but hides flaky cases.</li>
+<li>No treatment: the gate can flip between runs.</li>
+</ul></td></tr>
+<tr><td>D4</td><td>Role of semantic critics in the first slice</td><td><strong>Advisory</strong>: SEMANTIC findings affect a gate only after a reviewer marks them CONFIRMED (Requester). Keeps the gate deterministic and works with a local model. Intent-dependent WRONG_TOOL findings need review.</td><td>
+<ul>
+<li>Gate-blocking critics on a frontier API model: costly, sends data off-site, and makes the gate nondeterministic.</li>
+<li>No critics or RCA in the first slice: simplest, but loses UC-08.</li>
+</ul></td></tr>
+<tr><td>D5 / D13</td><td>Datastores</td><td><strong>PostgreSQL (with pgvector), ClickHouse, Redis</strong>; Neo4j and Qdrant removed (Requester). Fewest stores that still scale telemetry. Gives up multi-trace graph queries and a dedicated vector engine. Docker Compose will be aligned separately.</td><td>—</td></tr>
+<tr><td>D13b</td><td>When ClickHouse is introduced</td><td><strong>Phase 2</strong>, together with online evaluation. Spans stay in PostgreSQL for the first slice, reusing the current schema and seed (Default). Costs one span migration later.</td><td>
+<ul>
+<li>From the first slice: the target architecture from day one, but the schema, seed, and Compose must be rewritten before the demo.</li>
+</ul></td></tr>
+<tr><td>D6</td><td>Ingestion format</td><td><strong>OpenTelemetry GenAI semconv (pinned) plus an AgentProof profile</strong> of <code>agentproof.*</code> attributes for approval, case ID, and completion (Requester).</td><td>
+<ul>
+<li>Add an OpenInference adapter: wider framework coverage, but one more adapter to maintain.</li>
+<li>Import from Langfuse or LangSmith exports: eases migration, but third-party APIs change. Candidate for Phase 3.</li>
+</ul></td></tr>
+<tr><td>D7</td><td>Trace completion contract</td><td><strong>Explicit</strong>: the root span has ended and carries <code>agentproof.trace.complete=true</code>, or the owning evaluation has been finalized (Default).</td><td>
+<ul>
+<li>Quiescence timeout: simple, but can mark a trace COMPLETE wrongly, which then produces false “missing approval” findings.</li>
+<li>SDK span-count manifest: most reliable, but requires an SDK.</li>
+</ul></td></tr>
+<tr><td>D8</td><td>Onboarding cost</td><td><strong>Import tool specifications</strong> from function-calling JSON Schema, MCP tool listings, or OpenAPI (Default).</td><td>
+<ul>
+<li>Mine draft workflows from passing baseline traces for human approval: highly differentiating, but can enshrine bad behavior.</li>
+<li>Manual entry only.</li>
+</ul></td></tr>
+<tr><td>D9</td><td>Detector quality measurement</td><td><strong>Labeled scenario suite</strong> per failure class, reporting precision and recall; deterministic detectors must be exact on the controlled suite (Default).</td><td>
+<ul>
+<li>Add external benchmarks: τ²-bench for policy violations, TRAIL for localization. More credible, but TRAIL access is gated and the work is substantial.</li>
+<li>No measurement.</li>
+</ul></td></tr>
+<tr><td>D10</td><td>Edge authentication</td><td><strong>Match the repository</strong>: Traefik Proxy for routing and limits; all JWT validation in FastAPI (Default).</td><td>
+<ul>
+<li>Adopt Traefik Hub: commercial, and adds a dependency.</li>
+<li>Traefik ForwardAuth to a backend endpoint: one more network hop for little gain.</li>
+</ul></td></tr>
+<tr><td>D11</td><td>CI integration</td><td><strong>Thin CLI or GitHub Action in the first slice</strong> with distinct exit codes for PASS, FAIL, ERROR, and pending or timeout (Default).</td><td>
+<ul>
+<li>API only, with customers writing their own scripts.</li>
+</ul></td></tr>
+<tr><td>D12</td><td>First-slice scope</td><td><strong>Evaluation and gate first</strong> (Requester): UC-01–UC-07 and UC-09–UC-12. UC-08 keeps advisory critics; RCA moves to Phase 2. UC-13 keeps redaction and audited raw reads; deletion propagation moves to Phase 2. UC-14–UC-16 are Phase 2.</td><td>
+<ul>
+<li>Observability first, with the gate later: requires rewriting acceptance and seed.</li>
+<li>Everything in the MVP: largest delivery risk.</li>
+</ul></td></tr>
+</tbody>
+</table>
+</div>
 <h2 id="functional-requirements">8. Functional requirements</h2>
-<p>FR identifiers are assigned in this HTML draft to trace the existing use cases. “Must” denotes the required behavior within each use case’s stated initial scope; UC-07’s later semantic expansion is not promoted into the initial release.</p>
+<p>FR identifiers are assigned in this HTML draft to trace the use cases. “Must within stated scope” denotes required behavior within each use case’s stated initial scope; UC-07’s later semantic expansion is not promoted into the initial release. “Must, Phase 2” requirements are not part of the first complete slice.</p>
 <div class="table-wrap" role="region" aria-label="Functional requirements" tabindex="0">
 <table>
 <thead><tr><th scope="col">ID</th><th scope="col">Requirement</th><th scope="col">Priority</th><th scope="col">Use case</th></tr></thead>
 <tbody>
 <tr><td><span id="fr-01">FR-01</span></td><td>The system must authorize each protected operation against identity, scope, project membership, and resource ownership.</td><td>Must within stated scope</td><td><a href="#uc-01">UC-01</a></td></tr>
 <tr><td><span id="fr-02">FR-02</span></td><td>The system must publish immutable agent, tool, policy, and workflow versions that evaluations can pin.</td><td>Must within stated scope</td><td><a href="#uc-02">UC-02</a></td></tr>
-<tr><td><span id="fr-03">FR-03</span></td><td>The system must accept validated, redacted telemetry as an idempotent canonical trace with completeness and durable analysis status.</td><td>Must within stated scope</td><td><a href="#uc-03">UC-03</a></td></tr>
+<tr><td><span id="fr-03">FR-03</span></td><td>The system must accept validated, redacted OpenTelemetry GenAI telemetry conforming to the pinned AgentProof profile as an idempotent canonical trace, with an explicit completion signal, completeness state, and durable analysis status. Span writes are idempotent by project, trace, and span ID.</td><td>Must within stated scope</td><td><a href="#uc-03">UC-03</a></td></tr>
 <tr><td><span id="fr-04">FR-04</span></td><td>The system must let developers inspect ordered spans, separate result states, and a finding’s source evidence.</td><td>Must within stated scope</td><td><a href="#uc-04">UC-04</a></td></tr>
 <tr><td><span id="fr-05">FR-05</span></td><td>The system must distinguish invalid arguments from wrong tool choices using versioned specifications and validated evidence.</td><td>Must within stated scope</td><td><a href="#uc-05">UC-05</a></td></tr>
-<tr><td><span id="fr-06">FR-06</span></td><td>The system must verify applicable policies and workflow prerequisites without asserting absence from incomplete telemetry.</td><td>Must within stated scope</td><td><a href="#uc-06">UC-06</a></td></tr>
+<tr><td><span id="fr-06">FR-06</span></td><td>The system must evaluate versioned policy predicates and workflow rules (conditions, required prior steps, order, forbidden transitions) deterministically, without asserting absence from incomplete telemetry.</td><td>Must within stated scope</td><td><a href="#uc-06">UC-06</a></td></tr>
 <tr><td><span id="fr-07">FR-07</span></td><td>The system must detect repeated or inefficient actions while accounting for permitted retries, progress, and missing usage data.</td><td>Must within stated scope</td><td><a href="#uc-07">UC-07</a></td></tr>
-<tr><td><span id="fr-08">FR-08</span></td><td>The system must validate semantic claims before confirmation and distinguish facts, conclusions, judgments, and causal hypotheses in an RCA.</td><td>Must within stated scope</td><td><a href="#uc-08">UC-08</a></td></tr>
+<tr><td><span id="fr-08">FR-08</span></td><td>The system must validate semantic claims before confirmation and keep semantic findings advisory until a reviewer confirms them. An RCA (Phase 2) must distinguish facts, conclusions, judgments, and causal hypotheses.</td><td>Must within stated scope; RCA Phase 2</td><td><a href="#uc-08">UC-08</a></td></tr>
 <tr><td><span id="fr-09">FR-09</span></td><td>The system must preserve human review decisions as auditable annotations separate from the original findings.</td><td>Must within stated scope</td><td><a href="#uc-09">UC-09</a></td></tr>
 <tr><td><span id="fr-10">FR-10</span></td><td>The system must evaluate externally executed cases against a pinned expected case set and expose complete metrics or explicit errors.</td><td>Must within stated scope</td><td><a href="#uc-10">UC-10</a></td></tr>
 <tr><td><span id="fr-11">FR-11</span></td><td>The system must compare compatible candidate and baseline runs with traceable absolute and applicable relative changes.</td><td>Must within stated scope</td><td><a href="#uc-11">UC-11</a></td></tr>
 <tr><td><span id="fr-12">FR-12</span></td><td>The system must expose PASS, FAIL, ERROR, and a distinct pending state so CI promotes only on a trustworthy PASS.</td><td>Must within stated scope</td><td><a href="#uc-12">UC-12</a></td></tr>
-<tr><td><span id="fr-13">FR-13</span></td><td>The system must enforce sensitive-data access and propagate authorized retention or deletion across source records and projections.</td><td>Must within stated scope</td><td><a href="#uc-13">UC-13</a></td></tr>
+<tr><td><span id="fr-13">FR-13</span></td><td>The system must enforce sensitive-data access and audit raw reads. It must also propagate authorized retention or deletion across PostgreSQL, ClickHouse, and pgvector embeddings (propagation in Phase 2).</td><td>Must within stated scope; propagation Phase 2</td><td><a href="#uc-13">UC-13</a></td></tr>
+<tr><td><span id="fr-14">FR-14</span></td><td>The system must accept <em>k</em> trials per evaluation case. It must report per-case consistency and pass^k, and must count a mandatory-policy violation in any trial as a violation of the case.</td><td>Must within stated scope</td><td><a href="#uc-10">UC-10</a>, <a href="#uc-11">UC-11</a>, <a href="#uc-12">UC-12</a></td></tr>
+<tr><td><span id="fr-15">FR-15</span></td><td>The system must import tool specifications from function-calling JSON Schema, MCP tool listings, or OpenAPI documents as draft tool versions for review before publication.</td><td>Must within stated scope</td><td><a href="#uc-02">UC-02</a></td></tr>
+<tr><td><span id="fr-16">FR-16</span></td><td>The system must provide a thin CI client (CLI or GitHub Action) that creates and finalizes an evaluation, waits with a timeout, and exits with distinct codes for PASS, FAIL, ERROR, and pending or timeout.</td><td>Must within stated scope</td><td><a href="#uc-12">UC-12</a></td></tr>
+<tr><td><span id="fr-17">FR-17</span></td><td>The system must run the deterministic detectors on a configured sample of production traces, using the policy versions pinned to the deployed agent version, and report finding rates with their denominators.</td><td>Must, Phase 2</td><td><a href="#uc-14">UC-14</a></td></tr>
+<tr><td><span id="fr-18">FR-18</span></td><td>The system must group traces into sessions and evaluate session-scoped policies, without asserting absence when earlier turns are missing.</td><td>Must, Phase 2</td><td><a href="#uc-15">UC-15</a></td></tr>
+<tr><td><span id="fr-19">FR-19</span></td><td>The system must report token usage, cost, and latency by project, agent version, model, and tool, keeping unreported values distinct from zero.</td><td>Must, Phase 2</td><td><a href="#uc-16">UC-16</a></td></tr>
 </tbody>
 </table>
 </div>
@@ -476,12 +594,15 @@
 <tbody>
 <tr><td><span id="br-01">BR-01</span></td><td><strong>Evidence first:</strong> A confirmed finding references resolvable source IDs and the validation result. Model confidence alone never establishes a fact.</td><td>All applicable use cases</td></tr>
 <tr><td><span id="br-02">BR-02</span></td><td><strong>Completeness-aware reasoning:</strong> Absence claims such as “approval was omitted” require a sufficiently complete trace for the relevant action interval.</td><td>All applicable use cases</td></tr>
-<tr><td><span id="br-03">BR-03</span></td><td><strong>Tenant boundaries:</strong> Every API query and vector/graph traversal is constrained by project identity and source version; metadata filters are checked again at the authoritative record.</td><td>All applicable use cases</td></tr>
+<tr><td><span id="br-03">BR-03</span></td><td><strong>Tenant boundaries:</strong> Every API query, span-store query, and vector search is constrained by project identity and source version; filters are checked again at the authoritative record.</td><td>All applicable use cases</td></tr>
 <tr><td><span id="br-04">BR-04</span></td><td><strong>Version pinning:</strong> A run records agent, dataset, policy, workflow, evaluator, and gate versions. Re-evaluation is a new result, not a silent edit to history.</td><td>All applicable use cases</td></tr>
 <tr><td><span id="br-05">BR-05</span></td><td><strong>Independent outcome and behavior:</strong> A task can succeed while behavior fails, or fail without a policy violation.</td><td>All applicable use cases</td></tr>
 <tr><td><span id="br-06">BR-06</span></td><td><strong>Failure semantics:</strong> Operational failure and insufficient evidence produce explicit incomplete or <code>ERROR</code> states. They are never counted as successful agent behavior.</td><td>All applicable use cases</td></tr>
 <tr><td><span id="br-07">BR-07</span></td><td><strong>Asynchronous visibility:</strong> The UI and API expose accepted, queued, analyzing, completed, partial, and error states rather than implying immediate semantic analysis after ingestion.</td><td>All applicable use cases</td></tr>
 <tr><td><span id="br-08">BR-08</span></td><td><strong>Human review:</strong> Reviewer annotations preserve original detector outputs and must follow a defined rule before affecting a release gate.</td><td>All applicable use cases</td></tr>
+<tr><td><span id="br-09">BR-09</span></td><td><strong>Nondeterminism:</strong> Agent behavior is treated as stochastic. A case result aggregates its <em>k</em> trials. The number of trials is part of the pinned evaluation configuration. A single-trial result is labeled as such and never presented as consistent behavior.</td><td>UC-10, UC-11, UC-12, UC-14</td></tr>
+<tr><td><span id="br-10">BR-10</span></td><td><strong>Gate eligibility:</strong> Only deterministic or statistical findings, and semantic findings a reviewer has marked CONFIRMED under the recorded review policy, can affect a gate. Unreviewed semantic findings are advisory, which keeps a gate stable for the same pinned inputs.</td><td>UC-08, UC-09, UC-12</td></tr>
+<tr><td><span id="br-11">BR-11</span></td><td><strong>Evidence snapshot:</strong> When a finding is confirmed, the redacted span fields it cites are copied into PostgreSQL with the finding. Expiry of the span store's TTL therefore never makes a confirmed finding or gate decision unresolvable. Erasure under <a href="#uc-13">UC-13</a> applies to snapshots too.</td><td>UC-06, UC-08, UC-13, UC-14</td></tr>
 </tbody>
 </table>
 </div>
@@ -500,6 +621,8 @@
 <tr><td><span id="nfr-07">NFR-07</span></td><td>Data protection</td><td>Configured sensitive fields never appear in normal persisted views; every privileged raw read is audited; erased data never reappears in rebuild tests.</td><td>Redaction, access, deletion-propagation, and index-rebuild integration tests.</td></tr>
 <tr><td><span id="nfr-08">NFR-08</span></td><td>Trustworthy gate behavior</td><td>Zero automatic promotions for FAIL, ERROR, or pending in controlled CI scenarios.</td><td>End-to-end tests covering missing cases, required dependency failures, incompatible baselines, and breached policy limits.</td></tr>
 <tr><td><span id="nfr-09">NFR-09</span></td><td>Auditability</td><td>Every review annotation and gate decision retains identity where applicable, timestamp, relevant versions, and inspectable result references.</td><td>Inspect review and gate records after updates and concurrent-review conflicts.</td></tr>
+<tr><td><span id="nfr-10">NFR-10</span></td><td>Detector quality</td><td>On the labeled controlled suite, deterministic detectors produce no false positives and no false negatives. For each failure class, precision, recall, and the INCONCLUSIVE rate are reported with the suite version. Semantic critics report precision and recall but have no pass threshold while advisory.</td><td>Labeled positive and negative scenarios per class, including partial-trace and permitted-retry cases. External benchmarks (τ²-bench, TRAIL) are optional additions (D9).</td></tr>
+<tr><td><span id="nfr-11">NFR-11</span></td><td>Production scale (Phase 2)</td><td>Sustained ingestion throughput and dashboard query p95: <strong>targets not yet defined</strong>.</td><td>Set in <a href="#open-decisions">section 7.3</a> before Phase 2 acceptance; benchmark with a declared span rate, retention, and environment.</td></tr>
 </tbody>
 </table>
 </div>
@@ -508,10 +631,12 @@
 <table>
 <thead><tr><th scope="col">Data category</th><th scope="col">Stored / exposed</th><th scope="col">Retention and access</th></tr></thead>
 <tbody>
-<tr><td>Messages, tool inputs/outputs, and retrieved text</td><td>Canonical redacted telemetry and authorized evidence; may contain personal data.</td><td>Project retention duration is not specified. Apply pre-persistence redaction; restrict raw access and audit privileged reads.</td></tr>
+<tr><td>Messages, tool inputs/outputs, and retrieved text</td><td>Canonical redacted telemetry (PostgreSQL in the first slice, ClickHouse from Phase 2) and authorized evidence; may contain personal data.</td><td>Project retention duration is not specified; from Phase 2 it is enforced as a span-store TTL. Apply pre-persistence redaction; restrict raw access and audit privileged reads.</td></tr>
+<tr><td>Evidence snapshots of confirmed findings</td><td>Redacted span fields cited by confirmed findings, copied into PostgreSQL (<a href="#br-11">BR-11</a>).</td><td>Outlive span-store TTL by design; snapshot retention period is undecided. Erasure requests apply to them.</td></tr>
+<tr><td>Production usage metrics</td><td>Tokens, cost, and latency per span, aggregated by version, model, and tool (Phase 2).</td><td>Unreported values remain null, never zero. Retention follows the span store.</td></tr>
 <tr><td>Credentials and configured sensitive fields</td><td>Redacted before persistence; never included in standard views or critic packages.</td><td>No secret values in logs or audit records. Any permitted diagnostic raw-data handling needs an explicit deployment policy.</td></tr>
 <tr><td>Customer-support order and refund data</td><td>Relevant identifiers, amounts, and observed tool results required for evaluation.</td><td>Project-scoped access and configured retention. The source does not establish payment-card or health-data storage.</td></tr>
-<tr><td>Embeddings, graph relationships, and caches</td><td>Derived representations linked to versioned source records.</td><td>Deletion or invalidation propagates durably; pending propagation is visible and deleted material cannot be reindexed.</td></tr>
+<tr><td>Embeddings (pgvector) and caches</td><td>Derived representations linked to versioned source records.</td><td>Deletion or invalidation propagates durably; pending propagation is visible and deleted material cannot be reindexed.</td></tr>
 <tr><td>Reviews, evaluation reports, and audit metadata</td><td>Decisions, actor identifiers, timestamps, lineage, and diagnostics.</td><td>Retain according to the chosen policy without re-exposing erased content; exact duration is undecided.</td></tr>
 </tbody>
 </table>
@@ -523,22 +648,25 @@
 <thead><tr><th scope="col">ID</th><th scope="col">Use case</th><th scope="col">Primary actor</th><th scope="col">Initial scope</th><th scope="col">Requirement</th></tr></thead>
 <tbody>
 <tr><td><a href="#uc-01">UC-01</a></td><td>Enter a project and authorize access</td><td>Human user / CI client</td><td>Foundation</td><td><a href="#fr-01">FR-01</a></td></tr>
-<tr><td><a href="#uc-02">UC-02</a></td><td>Register an agent and versioned evaluation context</td><td>Project administrator</td><td>Foundation</td><td><a href="#fr-02">FR-02</a></td></tr>
+<tr><td><a href="#uc-02">UC-02</a></td><td>Register an agent and versioned evaluation context</td><td>Project administrator</td><td>Foundation</td><td><a href="#fr-02">FR-02</a>, <a href="#fr-15">FR-15</a></td></tr>
 <tr><td><a href="#uc-03">UC-03</a></td><td>Ingest and normalize an agent trace</td><td>Agent / OTel Collector</td><td>MVP</td><td><a href="#fr-03">FR-03</a></td></tr>
 <tr><td><a href="#uc-04">UC-04</a></td><td>Inspect a trace and its execution trajectory</td><td>Agent developer</td><td>MVP</td><td><a href="#fr-04">FR-04</a></td></tr>
 <tr><td><a href="#uc-05">UC-05</a></td><td>Detect tool misuse and invalid arguments</td><td>Analysis worker</td><td>MVP</td><td><a href="#fr-05">FR-05</a></td></tr>
 <tr><td><a href="#uc-06">UC-06</a></td><td>Verify policies and expected trajectories</td><td>Policy owner / analysis worker</td><td>MVP</td><td><a href="#fr-06">FR-06</a></td></tr>
 <tr><td><a href="#uc-07">UC-07</a></td><td>Detect loops and inefficient behavior</td><td>Analysis worker</td><td>MVP, with later semantic expansion</td><td><a href="#fr-07">FR-07</a></td></tr>
-<tr><td><a href="#uc-08">UC-08</a></td><td>Validate semantic judgments and generate an RCA</td><td>Analysis worker / reviewer</td><td>MVP</td><td><a href="#fr-08">FR-08</a></td></tr>
+<tr><td><a href="#uc-08">UC-08</a></td><td>Validate semantic judgments and generate an RCA</td><td>Analysis worker / reviewer</td><td>MVP (advisory critics); RCA Phase 2</td><td><a href="#fr-08">FR-08</a></td></tr>
 <tr><td><a href="#uc-09">UC-09</a></td><td>Review a finding and its evidence</td><td>Reviewer</td><td>MVP</td><td><a href="#fr-09">FR-09</a></td></tr>
-<tr><td><a href="#uc-10">UC-10</a></td><td>Evaluate an agent version on an external test run</td><td>Evaluation engineer / CI</td><td>MVP</td><td><a href="#fr-10">FR-10</a></td></tr>
-<tr><td><a href="#uc-11">UC-11</a></td><td>Compare a candidate with a baseline</td><td>Evaluation engineer</td><td>MVP</td><td><a href="#fr-11">FR-11</a></td></tr>
-<tr><td><a href="#uc-12">UC-12</a></td><td>Enforce a CI regression gate</td><td>CI system</td><td>MVP</td><td><a href="#fr-12">FR-12</a></td></tr>
-<tr><td><a href="#uc-13">UC-13</a></td><td>Govern sensitive trace data and derived projections</td><td>Project administrator</td><td>MVP controls; operations mature later</td><td><a href="#fr-13">FR-13</a></td></tr>
+<tr><td><a href="#uc-10">UC-10</a></td><td>Evaluate an agent version on an external test run</td><td>Evaluation engineer / CI</td><td>MVP</td><td><a href="#fr-10">FR-10</a>, <a href="#fr-14">FR-14</a></td></tr>
+<tr><td><a href="#uc-11">UC-11</a></td><td>Compare a candidate with a baseline</td><td>Evaluation engineer</td><td>MVP</td><td><a href="#fr-11">FR-11</a>, <a href="#fr-14">FR-14</a></td></tr>
+<tr><td><a href="#uc-12">UC-12</a></td><td>Enforce a CI regression gate</td><td>CI system</td><td>MVP</td><td><a href="#fr-12">FR-12</a>, <a href="#fr-14">FR-14</a>, <a href="#fr-16">FR-16</a></td></tr>
+<tr><td><a href="#uc-13">UC-13</a></td><td>Govern sensitive trace data and derived projections</td><td>Project administrator</td><td>MVP access controls; deletion propagation Phase 2</td><td><a href="#fr-13">FR-13</a></td></tr>
+<tr><td><a href="#uc-14">UC-14</a></td><td>Evaluate sampled production traces online</td><td>Analysis worker / agent operator</td><td>Phase 2</td><td><a href="#fr-17">FR-17</a></td></tr>
+<tr><td><a href="#uc-15">UC-15</a></td><td>Inspect a multi-turn session</td><td>Agent developer / operator</td><td>Phase 2</td><td><a href="#fr-18">FR-18</a></td></tr>
+<tr><td><a href="#uc-16">UC-16</a></td><td>Monitor usage, cost, and latency</td><td>Agent operator</td><td>Phase 2</td><td><a href="#fr-19">FR-19</a></td></tr>
 </tbody>
 </table>
 </div>
-<p>All use cases are Draft. Detailed goals, actors, preconditions, triggers, main flows, source exceptions, and acceptance criteria preserve the supplied specification. Failure postconditions, branch dispositions, and cancellation notes clarify those flows for this HTML draft; they do not introduce a cancellation API. Frequency is event-driven by each stated trigger; volumes are not specified.</p>
+<p>All use cases are Draft. UC-01 to UC-13 preserve the supplied specification as revised in version 0.2; UC-14 to UC-16 were added in version 0.2 for Phase 2. Failure postconditions, branch dispositions, and cancellation notes clarify those flows for this HTML draft; they do not introduce a cancellation API. Frequency is event-driven by each stated trigger; volumes are not specified.</p>
 <section class="usecase" id="uc-01" aria-labelledby="uc-01-title">
 <h3 id="uc-01-title">UC-01 — Enter a project and authorize access</h3>
 <div class="uc-meta"><span><b>Status:</b> Draft</span><span><b>Priority:</b> Must within stated scope</span><span><b>Scope:</b> Foundation</span><span><b>Requirements:</b> <a href="#fr-01">FR-01</a>, <a href="#nfr-04">NFR-04</a>, <a href="#nfr-07">NFR-07</a>, <a href="#nfr-09">NFR-09</a></span></div>
@@ -558,8 +686,8 @@
 <h4>Main flow</h4>
 <ol class="flow">
 <li>Auth0 issues an access token for the intended API audience with appropriate scopes.</li>
-<li>Traefik Hub validates token and coarse route or scope requirements.</li>
-<li>FastAPI resolves the actor and project context and checks operation-specific authorization.</li>
+<li>Traefik Proxy routes the request to the backend and applies rate and body limits.</li>
+<li>FastAPI validates the token’s signature, issuer, audience, and expiry, resolves the actor and project context, and checks operation-specific authorization.</li>
 <li>For resource access, FastAPI verifies the resource belongs to the project and the actor is allowed to access that project.</li>
 <li>The system performs the operation and records an audit event where required.</li>
 </ol>
@@ -579,7 +707,7 @@
 </section>
 <section class="usecase" id="uc-02" aria-labelledby="uc-02-title">
 <h3 id="uc-02-title">UC-02 — Register an agent and versioned evaluation context</h3>
-<div class="uc-meta"><span><b>Status:</b> Draft</span><span><b>Priority:</b> Must within stated scope</span><span><b>Scope:</b> Foundation</span><span><b>Requirements:</b> <a href="#fr-02">FR-02</a>, <a href="#nfr-04">NFR-04</a>, <a href="#nfr-06">NFR-06</a></span></div>
+<div class="uc-meta"><span><b>Status:</b> Draft</span><span><b>Priority:</b> Must within stated scope</span><span><b>Scope:</b> Foundation</span><span><b>Requirements:</b> <a href="#fr-02">FR-02</a>, <a href="#fr-15">FR-15</a>, <a href="#nfr-04">NFR-04</a>, <a href="#nfr-06">NFR-06</a></span></div>
 <h4>Description</h4>
 <p>Define the agent, tools, policies, and expected workflows needed to interpret its runs.</p>
 <h4>Actors</h4>
@@ -596,22 +724,23 @@
 <h4>Main flow</h4>
 <ol class="flow">
 <li>The administrator creates an agent identity and registers an agent version, including code or prompt revision metadata where available.</li>
-<li>The policy owner publishes versioned policy clauses and identifies the side effects and sensitivity of each tool.</li>
+<li>The administrator imports tool specifications from function-calling JSON Schema, an MCP tool listing, or an OpenAPI document, or enters them by hand. Imported specifications are drafts until reviewed.</li>
+<li>The policy owner publishes versioned policy clauses, each with a machine-checkable predicate in the versioned JSON predicate schema (for example <code>{"tool": "refund_order", "arg": "amount", "op": "&gt;", "value": 500}</code> with <code>{"prior_steps": ["lookup_policy", "request_approval"]}</code>). The owner also identifies the side effects, sensitivity, and permitted retries of each tool.</li>
 <li>The owner defines required, optional, conditional, and forbidden workflow transitions.</li>
-<li>The system validates references between policies, tools, and workflow steps; it records immutable versions in PostgreSQL.</li>
-<li>Background jobs update scoped Qdrant indexes and Neo4j relationship projections; the source version remains available to evaluations independently of index state.</li>
+<li>The system validates references between policies, tools, and workflow steps, and records immutable versions in PostgreSQL.</li>
+<li>A background job updates pgvector embeddings of policy clauses for retrieval. The source version remains available to evaluations whatever the embedding state.</li>
 </ol>
 <h4>Alternative flows and exceptions</h4>
 <div class="altflow"><h5>UC-02-A1 — Cancellation or interruption</h5>
-<p>Before publication at step 4, the actor may abandon changes without creating a published version. A published artifact remains immutable; a correction requires a new version.</p>
+<p>Before publication at step 5, the actor may abandon changes without creating a published version. A published artifact remains immutable; a correction requires a new version.</p>
 </div>
 <div class="altflow"><h5>UC-02-E1 — Exceptions and recovery</h5>
-<p class="cond"><b>Branch:</b> Steps 4–5 of the main flow, as applicable.</p>
-<p>An invalid tool reference or contradictory workflow is rejected with a specific validation error. Replacing a published rule produces a new version. A failed index update leaves the authoritative version intact but marks retrieval or graph-dependent analysis unavailable until rebuilt.</p>
-<p><strong>Disposition:</strong> Validation errors return to steps 2–3 for correction. Publishing a replacement creates a new version. A failed projection update leaves the authoritative version intact and dependent analysis unavailable until recovery.</p>
+<p class="cond"><b>Branch:</b> Steps 2–6 of the main flow, as applicable.</p>
+<p>An imported specification that cannot be parsed is rejected with the failing location. An invalid tool reference, a predicate that does not match the schema, or a contradictory workflow is rejected with a specific validation error. Replacing a published rule produces a new version. A failed embedding update leaves the authoritative version intact, but marks retrieval-dependent analysis unavailable until rebuilt.</p>
+<p><strong>Disposition:</strong> Import and validation errors return to steps 2–4 for correction. Publishing a replacement creates a new version. A failed embedding update leaves the authoritative version intact and dependent analysis unavailable until recovery.</p>
 </div>
 <h4 id="ac-02">Acceptance criteria — AC-02</h4>
-<p>A past finding resolves its original policy clause after a policy update; a semantic search applies project and version filters; changing an artifact does not silently rewrite prior decisions.</p>
+<p>A past finding resolves its original policy clause after a policy update. A semantic search applies project and version filters. Changing an artifact does not silently rewrite prior decisions. An imported tool specification yields the same argument schema as the source document.</p>
 <h4>Notes</h4>
 <p>Shared rules: <a href="#br-03">BR-03</a>, <a href="#br-04">BR-04</a>. Unresolved configuration and ownership decisions are tracked in <a href="#open-decisions">section 7.3</a>.</p>
 </section>
@@ -625,7 +754,7 @@
 <h4>Preconditions</h4>
 <p>The caller has a scoped ingestion identity and an existing project and agent version. A redaction configuration is active.</p>
 <h4>Trigger</h4>
-<p>The caller submits OTLP-compatible spans or a supported framework-specific trace.</p>
+<p>The caller submits OTLP spans that follow the pinned OpenTelemetry GenAI semantic conventions and the AgentProof profile: <code>agentproof.*</code> attributes for project, agent version, case ID and trial number, approval events, and trace completion.</p>
 <h4>Postconditions</h4>
 <ul>
 <li><strong>On success:</strong> An accepted trace is retrievable with a visible processing state and durable path to analysis.</li>
@@ -634,9 +763,9 @@
 <h4>Main flow</h4>
 <ol class="flow">
 <li>The gateway and ingestion entrypoint authenticate the caller, enforce project boundaries and payload limits, and validate trace identifiers and structure.</li>
-<li>Redaction runs before sensitive fields are persisted. The adapter maps source spans to canonical agent, LLM, tool, retrieval, handoff, guardrail, and approval types.</li>
-<li>The normalizer reconstructs parent-child and chronological relationships, records warnings, and marks the trace <code>COMPLETE</code>, <code>PARTIAL</code>, or <code>OPEN</code> according to an explicit completion contract.</li>
-<li>PostgreSQL stores the canonical trace, source metadata needed for diagnostics, and a durable analysis-job record using a stable idempotency key.</li>
+<li>Redaction runs before sensitive fields are persisted. The adapter maps spans to canonical agent, LLM, tool, retrieval, handoff, guardrail, and approval types, using the semconv operation names (for example <code>invoke_agent</code> and <code>execute_tool</code>) and the profile’s approval attributes. The semconv version is recorded on the trace.</li>
+<li>The normalizer reconstructs parent-child and chronological relationships and records warnings. It marks the trace <code>COMPLETE</code> only when the root span has ended and carries <code>agentproof.trace.complete=true</code>, or the owning evaluation has been finalized. A trace known to be missing spans is <code>PARTIAL</code>; anything else stays <code>OPEN</code>. Silence is never treated as completion.</li>
+<li>The span store writes spans idempotently by project, trace, and span ID. That store is PostgreSQL in the first slice and ClickHouse from Phase 2. PostgreSQL stores the trace record, source metadata needed for diagnostics, and a durable analysis-job record with a stable idempotency key, in one transaction. Acceptance requires both writes.</li>
 <li>The ingestion API acknowledges acceptance. Job publication to Redis is retried or recovered by an outbox/sweep if the queue is temporarily unavailable.</li>
 </ol>
 <h4>Alternative flows and exceptions</h4>
@@ -645,11 +774,11 @@
 </div>
 <div class="altflow"><h5>UC-03-E1 — Exceptions and recovery</h5>
 <p class="cond"><b>Branch:</b> Steps 1–5 of the main flow, as applicable.</p>
-<p>Duplicate delivery returns the existing trace or an idempotent acknowledgement without duplicate findings. Malformed payloads are rejected with actionable errors. A missing parent span is recorded as incomplete structure. A database failure prevents successful acceptance. A persisted but temporarily unqueued trace remains recoverable and is never reported as fully analyzed.</p>
+<p>Duplicate delivery returns the existing trace or an idempotent acknowledgement without duplicate findings. Malformed payloads, or spans that do not follow the pinned profile, are rejected with actionable errors. A missing parent span is recorded as incomplete structure. A failure in either store prevents successful acceptance. Spans already written are deduplicated when the sender retries. A persisted but temporarily unqueued trace remains recoverable and is never reported as fully analyzed.</p>
 <p><strong>Disposition:</strong> Reject invalid payloads or unsuccessful persistence without acceptance. Duplicate submissions return the existing result. Incomplete structure remains explicit; accepted but unqueued work stays recoverable and pending analysis.</p>
 </div>
 <h4 id="ac-03">Acceptance criteria — AC-03</h4>
-<p>Replaying the same delivery does not multiply traces; a worker crash or queue outage cannot silently lose accepted work; redacted values are absent from normal persisted views; trace completeness is available to downstream detectors.</p>
+<p>Replaying the same delivery multiplies neither traces nor spans. A worker crash or queue outage cannot silently lose accepted work. Redacted values are absent from normal persisted views. Trace completeness and its reason are available to downstream detectors. A trace without the completion signal never becomes <code>COMPLETE</code>.</p>
 <h4>Notes</h4>
 <p>Shared rules: <a href="#br-02">BR-02</a>, <a href="#br-03">BR-03</a>, <a href="#br-06">BR-06</a>, <a href="#br-07">BR-07</a>. Unresolved configuration and ownership decisions are tracked in <a href="#open-decisions">section 7.3</a>.</p>
 </section>
@@ -682,8 +811,8 @@
 </div>
 <div class="altflow"><h5>UC-04-E1 — Exceptions and recovery</h5>
 <p class="cond"><b>Branch:</b> Steps 1–4 of the main flow, as applicable.</p>
-<p>A partial trace is marked clearly; an incomplete run must not imply that an unseen approval was absent. If the graph projection is unavailable, the canonical span timeline and findings can still be displayed, with the graph view marked unavailable. Raw payload access requires additional authorization and audit logging.</p>
-<p><strong>Disposition:</strong> Continue with completeness warnings or the canonical timeline when the graph is unavailable. Deny unauthorized raw reads; the user may continue using the redacted view.</p>
+<p>A partial trace is marked clearly; an incomplete run must not imply that an unseen approval was absent. The expected-versus-actual path view is computed from the span records and the pinned workflow version, so no separate graph store is needed. If spans have expired from the span store, confirmed findings still show their evidence snapshots (<a href="#br-11">BR-11</a>) and the timeline is marked expired. Raw payload access requires additional authorization and audit logging.</p>
+<p><strong>Disposition:</strong> Continue with completeness warnings, or with evidence snapshots when spans have expired. Deny unauthorized raw reads; the user may continue using the redacted view.</p>
 </div>
 <h4 id="ac-04">Acceptance criteria — AC-04</h4>
 <p>Each visible confirmed finding links to resolvable evidence in the same authorized project; the UI preserves ordering and parent-child distinctions; sensitive values remain masked in standard views.</p>
@@ -710,7 +839,7 @@
 <ol class="flow">
 <li>The worker checks tool names, schema versions, argument types, permitted ranges, and domain constraints using deterministic validators.</li>
 <li>It distinguishes a schema violation from an argument that is structurally valid but inconsistent with observed state, such as refunding more than the order value.</li>
-<li>If tool choice requires interpreting the task intent, a candidate <code>WRONG_TOOL</code> finding is passed to a bounded semantic critic with the task, tool specifications, and relevant spans.</li>
+<li>If tool choice requires interpreting the task intent, a candidate <code>WRONG_TOOL</code> finding is passed to a bounded semantic critic with the task, tool specifications, and relevant spans. The result is advisory until reviewed (<a href="#br-10">BR-10</a>).</li>
 <li>The evidence validator resolves cited records and verifies values before a finding is confirmed.</li>
 </ol>
 <h4>Alternative flows and exceptions</h4>
@@ -745,10 +874,10 @@
 </ul>
 <h4>Main flow</h4>
 <ol class="flow">
-<li>The worker identifies applicable policy conditions from tool arguments and prior observed state.</li>
-<li>It evaluates deterministic requirements first: required steps, order, conditional branches, forbidden transitions, and approval before side effects.</li>
+<li>The worker evaluates each clause’s versioned predicate against tool arguments and prior observed state to decide whether the clause applies.</li>
+<li>It evaluates deterministic requirements first: required prior steps, order, conditional branches, forbidden transitions, and approval before side effects.</li>
 <li>The trajectory comparer emits a machine-readable difference: missing, unexpected, repeated, wrong-order, forbidden, or incomplete step.</li>
-<li>For ambiguous natural-language clauses, semantic retrieval obtains the exact policy version and a policy critic proposes a judgment.</li>
+<li>For a clause without a machine-checkable predicate, pgvector retrieval obtains the exact policy version and a policy critic proposes an advisory judgment (<a href="#br-10">BR-10</a>).</li>
 <li>The validator checks the source clause, relevant spans, event order, and trace completeness before confirming a <code>POLICY_VIOLATION</code> or related finding.</li>
 </ol>
 <h4>Reference scenario</h4>
@@ -763,7 +892,7 @@
 <p><strong>Disposition:</strong> Skip inapplicable optional branches. Undecidable applicability or incomplete intervals produce INCONCLUSIVE or an analysis error. Contradictory policies stop the affected check as a configuration error.</p>
 </div>
 <h4 id="ac-06">Acceptance criteria — AC-06</h4>
-<p>Same inputs and rule versions produce the same deterministic result; missing and wrong-order steps are distinguished; a confirmed violation names the exact clause and ordered action spans; partial traces cannot create a false missing-approval claim.</p>
+<p>Same inputs and rule versions produce the same deterministic result. Missing and wrong-order steps are distinguished. A confirmed violation names the exact clause, its predicate, and the ordered action spans. Partial traces cannot create a false missing-approval claim. Advisory semantic judgments are labeled as such.</p>
 <h4>Notes</h4>
 <p>Shared rules: <a href="#br-01">BR-01</a>, <a href="#br-02">BR-02</a>, <a href="#br-04">BR-04</a>, <a href="#br-05">BR-05</a>, <a href="#br-06">BR-06</a>. Unresolved configuration and ownership decisions are tracked in <a href="#open-decisions">section 7.3</a>.</p>
 </section>
@@ -796,7 +925,7 @@
 </div>
 <div class="altflow"><h5>UC-07-E1 — Exceptions and recovery</h5>
 <p class="cond"><b>Branch:</b> Steps 2–4 of the main flow, as applicable.</p>
-<p>Similar queries can be justified if results or task state change materially. Missing retrieval outputs prevent a confident <code>RETRIEVAL_LOOP</code> decision. A Qdrant outage does not erase deterministic repetition findings but can make semantic progress assessment unavailable.</p>
+<p>Similar queries can be justified if results or task state change materially. Missing retrieval outputs prevent a confident <code>RETRIEVAL_LOOP</code> decision. Missing embeddings do not erase deterministic repetition findings, but they can make semantic progress assessment unavailable.</p>
 <p><strong>Disposition:</strong> Changed results or state and permitted retries may justify repetition. Missing outputs or semantic-search outages leave affected progress assessments unavailable; deterministic findings remain available.</p>
 </div>
 <h4 id="ac-07">Acceptance criteria — AC-07</h4>
@@ -806,7 +935,7 @@
 </section>
 <section class="usecase" id="uc-08" aria-labelledby="uc-08-title">
 <h3 id="uc-08-title">UC-08 — Validate semantic judgments and generate an RCA</h3>
-<div class="uc-meta"><span><b>Status:</b> Draft</span><span><b>Priority:</b> Must within stated scope</span><span><b>Scope:</b> MVP</span><span><b>Requirements:</b> <a href="#fr-08">FR-08</a>, <a href="#nfr-04">NFR-04</a>, <a href="#nfr-05">NFR-05</a>, <a href="#nfr-06">NFR-06</a>, <a href="#nfr-07">NFR-07</a></span></div>
+<div class="uc-meta"><span><b>Status:</b> Draft</span><span><b>Priority:</b> Must within stated scope</span><span><b>Scope:</b> MVP with advisory critics; RCA (step 5) Phase 2</span><span><b>Requirements:</b> <a href="#fr-08">FR-08</a>, <a href="#nfr-04">NFR-04</a>, <a href="#nfr-05">NFR-05</a>, <a href="#nfr-06">NFR-06</a>, <a href="#nfr-07">NFR-07</a></span></div>
 <h4>Description</h4>
 <p>Explain confirmed failures without promoting unsupported model claims to facts.</p>
 <h4>Actors</h4>
@@ -822,11 +951,11 @@
 </ul>
 <h4>Main flow</h4>
 <ol class="flow">
-<li>A retriever builds a bounded evidence package from authorized Qdrant candidates, Neo4j relationships, and authoritative PostgreSQL records.</li>
+<li>A retriever builds a bounded evidence package from authorized pgvector candidates, the trace’s span tree, and authoritative PostgreSQL records.</li>
 <li>LangGraph routes the package to applicable trajectory, policy, or efficiency critics; each returns a structured decision, reason, uncertainty, and evidence IDs.</li>
-<li>The evidence validator checks IDs, source versions, quoted values, graph relationships, metric calculations, and redaction constraints.</li>
-<li>A valid judgment can become a confirmed finding. Unsupported claims remain unconfirmed and are visible as insufficient evidence or analysis diagnostics.</li>
-<li>The RCA synthesizer combines validated findings with relevant relationships and clearly separates observed facts, rule-derived conclusions, semantic judgments, and hypotheses. Recommendations point to a concrete action or control.</li>
+<li>The evidence validator checks IDs, source versions, quoted values, span order and parentage, metric calculations, and redaction constraints.</li>
+<li>A valid judgment can become a confirmed SEMANTIC finding. It stays advisory, and outside every gate, until a reviewer marks it CONFIRMED (<a href="#br-10">BR-10</a>). Unsupported claims remain unconfirmed and are visible as insufficient evidence or analysis diagnostics.</li>
+<li>Phase 2: the RCA synthesizer combines validated findings with relevant relationships and clearly separates observed facts, rule-derived conclusions, semantic judgments, and hypotheses. Recommendations point to a concrete action or control.</li>
 </ol>
 <h4>Alternative flows and exceptions</h4>
 <div class="altflow"><h5>UC-08-A1 — Cancellation or interruption</h5>
@@ -834,11 +963,11 @@
 </div>
 <div class="altflow"><h5>UC-08-E1 — Exceptions and recovery</h5>
 <p class="cond"><b>Branch:</b> Steps 1–5 of the main flow, as applicable.</p>
-<p>An LLM response without evidence IDs cannot confirm a finding. A source record missing from a projection is verified against the authoritative store; unrecoverable discrepancies become analysis errors. Prompt-injection text in retrieved material is treated as data, not as an instruction to the critic. An unavailable LLM does not invalidate already confirmed deterministic findings.</p>
-<p><strong>Disposition:</strong> Unverifiable claims remain unconfirmed. Check missing projection evidence against the source; unrecoverable discrepancies become analysis errors. LLM outages preserve confirmed deterministic findings.</p>
+<p>An LLM response without evidence IDs cannot confirm a finding. A retrieval candidate whose embedding is stale or missing is verified against the authoritative store; unrecoverable discrepancies become analysis errors. Prompt-injection text in retrieved material is treated as data, not as an instruction to the critic. An unavailable LLM does not invalidate already confirmed deterministic findings.</p>
+<p><strong>Disposition:</strong> Unverifiable claims remain unconfirmed. Check stale retrieval evidence against the source; unrecoverable discrepancies become analysis errors. LLM outages preserve confirmed deterministic findings.</p>
 </div>
 <h4 id="ac-08">Acceptance criteria — AC-08</h4>
-<p>Every confirmed semantic finding has validated evidence IDs; an RCA cannot claim that a planner failed to read a policy as an observed fact unless the trace supports it; validators record rejection reasons; models do not have unrestricted datastore access.</p>
+<p>Every confirmed semantic finding has validated evidence IDs. An unreviewed semantic finding never changes a gate result. Critic precision and recall are reported on the labeled suite (<a href="#nfr-10">NFR-10</a>). An RCA (Phase 2) cannot claim that a planner failed to read a policy as an observed fact unless the trace supports it; validators record rejection reasons; models do not have unrestricted datastore access.</p>
 <h4>Notes</h4>
 <p>Shared rules: <a href="#br-01">BR-01</a>, <a href="#br-03">BR-03</a>, <a href="#br-04">BR-04</a>, <a href="#br-06">BR-06</a>. Unresolved configuration and ownership decisions are tracked in <a href="#open-decisions">section 7.3</a>.</p>
 </section>
@@ -863,7 +992,7 @@
 <li>The reviewer sees the failure type, severity, evaluator version, confidence if applicable, evidence, source policy, trace completeness, and system analysis state.</li>
 <li>The reviewer follows evidence references and records <code>CONFIRMED</code>, <code>DISMISSED</code>, or <code>NEEDS_REVIEW</code>, with an optional rationale.</li>
 <li>The system stores a separate, timestamped annotation with actor identity and preserves the machine-produced finding and evidence.</li>
-<li>Evaluation reports distinguish automated findings from reviewer decisions; if review changes gate eligibility, the gate is recomputed with the review-policy version recorded.</li>
+<li>Evaluation reports distinguish automated findings from reviewer decisions. If a review changes gate eligibility (for example, confirming an advisory semantic finding under <a href="#br-10">BR-10</a>), the gate is recomputed with the review-policy version recorded.</li>
 </ol>
 <h4>Alternative flows and exceptions</h4>
 <div class="altflow"><h5>UC-09-A1 — Cancellation or interruption</h5>
@@ -881,7 +1010,7 @@
 </section>
 <section class="usecase" id="uc-10" aria-labelledby="uc-10-title">
 <h3 id="uc-10-title">UC-10 — Evaluate an agent version on an external test run</h3>
-<div class="uc-meta"><span><b>Status:</b> Draft</span><span><b>Priority:</b> Must within stated scope</span><span><b>Scope:</b> MVP</span><span><b>Requirements:</b> <a href="#fr-10">FR-10</a>, <a href="#nfr-04">NFR-04</a>, <a href="#nfr-05">NFR-05</a>, <a href="#nfr-06">NFR-06</a>, <a href="#nfr-08">NFR-08</a></span></div>
+<div class="uc-meta"><span><b>Status:</b> Draft</span><span><b>Priority:</b> Must within stated scope</span><span><b>Scope:</b> MVP</span><span><b>Requirements:</b> <a href="#fr-10">FR-10</a>, <a href="#fr-14">FR-14</a>, <a href="#nfr-04">NFR-04</a>, <a href="#nfr-05">NFR-05</a>, <a href="#nfr-06">NFR-06</a>, <a href="#nfr-08">NFR-08</a></span></div>
 <h4>Description</h4>
 <p>Produce an evaluation run from customer-executed agent cases without running arbitrary customer code inside AgentProof.</p>
 <h4>Actors</h4>
@@ -897,10 +1026,10 @@
 </ul>
 <h4>Main flow</h4>
 <ol class="flow">
-<li>The client creates an evaluation run pinned to project, agent candidate version, dataset version, policy/workflow versions, and evaluator configuration.</li>
-<li>Customer CI executes each case and submits resulting traces with case IDs and idempotency keys.</li>
+<li>The client creates an evaluation run pinned to the project, agent candidate version, dataset version, policy and workflow versions, evaluator configuration, and trial count <em>k</em>, usually through the CI client (<a href="#fr-16">FR-16</a>).</li>
+<li>Customer CI executes each case <em>k</em> times and submits the resulting traces with case IDs, trial numbers, and idempotency keys.</li>
 <li>The client signals that submission is complete. The system freezes the expected case set and waits for ingestion and all required analysis jobs to reach terminal states.</li>
-<li>The evaluator aggregates outcomes, finding rates, policy violations, trajectory conformance, latency, tokens, and cost, preserving denominators and missing-data counts.</li>
+<li>The evaluator aggregates trials per case: pass rate, pass^k, and whether any trial broke a mandatory policy. It then aggregates cases: outcomes, finding rates, policy violations, trajectory conformance, latency, tokens, and cost, preserving denominators and missing-data counts (<a href="#br-09">BR-09</a>).</li>
 <li>The system publishes a versioned report and exposes a machine-readable result when the run is complete.</li>
 </ol>
 <h4>Alternative flows and exceptions</h4>
@@ -909,17 +1038,17 @@
 </div>
 <div class="altflow"><h5>UC-10-E1 — Exceptions and recovery</h5>
 <p class="cond"><b>Branch:</b> Steps 2–5 of the main flow, as applicable.</p>
-<p>Missing cases, duplicate IDs, incomplete traces, or required critic failures prevent an apparently complete evaluation. A deadline can mark the run <code>ERROR</code> with the missing work recorded; it does not imply that the candidate passed. Retrying a trace upload or finalize request is idempotent. A case outcome that the customer did not provide is not inferred from a polished final answer.</p>
+<p>Missing cases, missing trials, duplicate IDs, incomplete traces, or required analysis failures prevent an apparently complete evaluation. A run configured with fewer trials than the gate requires is incompatible with that gate. A deadline can mark the run <code>ERROR</code> with the missing work recorded; it does not imply that the candidate passed. Retrying a trace upload or finalize request is idempotent. A case outcome that the customer did not provide is not inferred from a polished final answer.</p>
 <p><strong>Disposition:</strong> Submission completion does not mean evaluation completion. Missing cases, conflicting IDs, incomplete traces, or failed required critics keep the run incomplete or yield ERROR at its deadline. Safe retries reuse the existing submission or finalize result.</p>
 </div>
 <h4 id="ac-10">Acceptance criteria — AC-10</h4>
-<p>The system never executes the customer&#x27;s production agent; an evaluation cannot be finalized while required analyses are pending; each metric exposes numerator, denominator, exclusions, and configuration version.</p>
+<p>The system never executes the customer&#x27;s production agent; an evaluation cannot be finalized while required analyses are pending; each metric exposes numerator, denominator, exclusions, and configuration version; per-case results show all <em>k</em> trials and pass^k.</p>
 <h4>Notes</h4>
-<p>Shared rules: <a href="#br-04">BR-04</a>, <a href="#br-05">BR-05</a>, <a href="#br-06">BR-06</a>, <a href="#br-07">BR-07</a>. Unresolved configuration and ownership decisions are tracked in <a href="#open-decisions">section 7.3</a>.</p>
+<p>Shared rules: <a href="#br-04">BR-04</a>, <a href="#br-05">BR-05</a>, <a href="#br-06">BR-06</a>, <a href="#br-07">BR-07</a>, <a href="#br-09">BR-09</a>. Unresolved configuration and ownership decisions are tracked in <a href="#open-decisions">section 7.3</a>.</p>
 </section>
 <section class="usecase" id="uc-11" aria-labelledby="uc-11-title">
 <h3 id="uc-11-title">UC-11 — Compare a candidate with a baseline</h3>
-<div class="uc-meta"><span><b>Status:</b> Draft</span><span><b>Priority:</b> Must within stated scope</span><span><b>Scope:</b> MVP</span><span><b>Requirements:</b> <a href="#fr-11">FR-11</a>, <a href="#nfr-04">NFR-04</a>, <a href="#nfr-06">NFR-06</a>, <a href="#nfr-08">NFR-08</a></span></div>
+<div class="uc-meta"><span><b>Status:</b> Draft</span><span><b>Priority:</b> Must within stated scope</span><span><b>Scope:</b> MVP</span><span><b>Requirements:</b> <a href="#fr-11">FR-11</a>, <a href="#fr-14">FR-14</a>, <a href="#nfr-04">NFR-04</a>, <a href="#nfr-06">NFR-06</a>, <a href="#nfr-08">NFR-08</a></span></div>
 <h4>Description</h4>
 <p>Determine whether a proposed agent version regresses in behavior, quality, latency, or cost.</p>
 <h4>Actors</h4>
@@ -936,7 +1065,7 @@
 <h4>Main flow</h4>
 <ol class="flow">
 <li>The system validates compatibility and records the comparison inputs.</li>
-<li>It presents side-by-side outcome and trajectory metrics, absolute changes, relative changes where the denominator is nonzero, and uncertainty or sample-size context where appropriate.</li>
+<li>It presents side-by-side outcome and trajectory metrics, including pass^k: absolute changes, relative changes where the denominator is nonzero, and sample-size context. It lists cases whose result changed between candidate and baseline separately from cases that are inconsistent across trials (flaky) in either run.</li>
 <li>The engineer drills into cases contributing to a changed metric and opens their trace-level findings.</li>
 <li>The comparison becomes a pinned input to a gate decision.</li>
 </ol>
@@ -950,13 +1079,13 @@
 <p><strong>Disposition:</strong> Incompatible or missing dataset versions end the comparison with an error. A zero baseline uses an explicitly defined rule; missing cost or token data remains missing rather than an improvement.</p>
 </div>
 <h4 id="ac-11">Acceptance criteria — AC-11</h4>
-<p>Critical policy failures are not hidden inside a composite score; absolute and relative deltas are distinct; a comparison can be traced to its exact baseline and candidate versions.</p>
+<p>Critical policy failures are not hidden inside a composite score; absolute and relative deltas are distinct; flaky cases are not reported as regressions or improvements; runs with different trial counts are flagged as not directly comparable; a comparison can be traced to its exact baseline and candidate versions.</p>
 <h4>Notes</h4>
-<p>Shared rules: <a href="#br-04">BR-04</a>, <a href="#br-05">BR-05</a>, <a href="#br-06">BR-06</a>. Unresolved configuration and ownership decisions are tracked in <a href="#open-decisions">section 7.3</a>.</p>
+<p>Shared rules: <a href="#br-04">BR-04</a>, <a href="#br-05">BR-05</a>, <a href="#br-06">BR-06</a>, <a href="#br-09">BR-09</a>. Unresolved configuration and ownership decisions are tracked in <a href="#open-decisions">section 7.3</a>.</p>
 </section>
 <section class="usecase" id="uc-12" aria-labelledby="uc-12-title">
 <h3 id="uc-12-title">UC-12 — Enforce a CI regression gate</h3>
-<div class="uc-meta"><span><b>Status:</b> Draft</span><span><b>Priority:</b> Must within stated scope</span><span><b>Scope:</b> MVP</span><span><b>Requirements:</b> <a href="#fr-12">FR-12</a>, <a href="#nfr-04">NFR-04</a>, <a href="#nfr-06">NFR-06</a>, <a href="#nfr-08">NFR-08</a>, <a href="#nfr-09">NFR-09</a></span></div>
+<div class="uc-meta"><span><b>Status:</b> Draft</span><span><b>Priority:</b> Must within stated scope</span><span><b>Scope:</b> MVP</span><span><b>Requirements:</b> <a href="#fr-12">FR-12</a>, <a href="#fr-14">FR-14</a>, <a href="#fr-16">FR-16</a>, <a href="#nfr-04">NFR-04</a>, <a href="#nfr-06">NFR-06</a>, <a href="#nfr-08">NFR-08</a>, <a href="#nfr-09">NFR-09</a></span></div>
 <h4>Description</h4>
 <p>Provide a reliable decision for an existing CI system before an agent version is promoted.</p>
 <h4>Actors</h4>
@@ -972,10 +1101,10 @@
 </ul>
 <h4>Main flow</h4>
 <ol class="flow">
-<li>The system evaluates each configured requirement against pinned metrics, findings, and baseline changes.</li>
-<li>Mandatory safety requirements are evaluated independently of improvements in unrelated measures.</li>
+<li>The system evaluates each configured requirement against pinned metrics, gate-eligible findings (<a href="#br-10">BR-10</a>), and baseline changes.</li>
+<li>Mandatory safety requirements are evaluated independently of improvements in unrelated measures. A mandatory-policy violation in any trial of any case breaches them. Consistency requirements use pass^k.</li>
 <li>It returns <code>PASS</code> if all requirements are verifiably satisfied, or <code>FAIL</code> with each breached requirement and its observed value if the complete trustworthy evaluation violates at least one requirement.</li>
-<li>CI continues promotion only for <code>PASS</code>; it presents the report and stops promotion for <code>FAIL</code>.</li>
+<li>The CI client (<a href="#fr-16">FR-16</a>) maps the result to distinct exit codes. CI continues promotion only for <code>PASS</code>; for any other result it presents the report and stops promotion.</li>
 </ol>
 <h4>Alternative flows and exceptions</h4>
 <div class="altflow"><h5>UC-12-A1 — Cancellation or interruption</h5>
@@ -983,17 +1112,17 @@
 </div>
 <div class="altflow"><h5>UC-12-E1 — Exceptions and recovery</h5>
 <p class="cond"><b>Branch:</b> Steps 1–4 of the main flow, as applicable.</p>
-<p>A pending evaluation returns a nonterminal state. Unavailable required analyses, missing cases, stale projections needed for a requirement, incompatible baseline, or internal failure produce <code>ERROR</code> and diagnostics. CI must block automatic promotion for <code>ERROR</code> as well as <code>FAIL</code>; a manual override, if ever supported, is a separate authorized and audited process.</p>
+<p>A pending evaluation returns a nonterminal state. Unavailable required analyses, missing cases or trials, stale embeddings needed for a requirement, incompatible baseline, or internal failure produce <code>ERROR</code> and diagnostics. CI must block automatic promotion for <code>ERROR</code> as well as <code>FAIL</code>; a manual override, if ever supported, is a separate authorized and audited process.</p>
 <p><strong>Disposition:</strong> Pending work returns a nonterminal response; missing or untrustworthy required inputs return ERROR. CI blocks promotion for both. A future manual override would require separate authorization and audit.</p>
 </div>
 <h4 id="ac-12">Acceptance criteria — AC-12</h4>
-<p>Gate outcomes are stable for the same pinned inputs; CI distinguishes <code>PASS</code>, <code>FAIL</code>, <code>ERROR</code>, and pending; policy-violation limits cannot be offset by improved task success; a response includes a concise machine-readable explanation.</p>
+<p>Gate outcomes are stable for the same pinned inputs, because unreviewed semantic findings are excluded. The CI client exits with distinct codes for <code>PASS</code>, <code>FAIL</code>, <code>ERROR</code>, and pending or timeout. Policy-violation limits cannot be offset by improved task success. A response includes a concise machine-readable explanation.</p>
 <h4>Notes</h4>
-<p>Shared rules: <a href="#br-04">BR-04</a>, <a href="#br-05">BR-05</a>, <a href="#br-06">BR-06</a>, <a href="#br-08">BR-08</a>. Unresolved configuration and ownership decisions are tracked in <a href="#open-decisions">section 7.3</a>.</p>
+<p>Shared rules: <a href="#br-04">BR-04</a>, <a href="#br-05">BR-05</a>, <a href="#br-06">BR-06</a>, <a href="#br-08">BR-08</a>, <a href="#br-09">BR-09</a>, <a href="#br-10">BR-10</a>. Unresolved configuration and ownership decisions are tracked in <a href="#open-decisions">section 7.3</a>.</p>
 </section>
 <section class="usecase" id="uc-13" aria-labelledby="uc-13-title">
 <h3 id="uc-13-title">UC-13 — Govern sensitive trace data and derived projections</h3>
-<div class="uc-meta"><span><b>Status:</b> Draft</span><span><b>Priority:</b> Must within stated scope</span><span><b>Scope:</b> MVP controls; operations mature later</span><span><b>Requirements:</b> <a href="#fr-13">FR-13</a>, <a href="#nfr-04">NFR-04</a>, <a href="#nfr-05">NFR-05</a>, <a href="#nfr-07">NFR-07</a>, <a href="#nfr-09">NFR-09</a></span></div>
+<div class="uc-meta"><span><b>Status:</b> Draft</span><span><b>Priority:</b> Must within stated scope</span><span><b>Scope:</b> MVP: steps 1 and 4 (access control, redaction, audited raw reads). Phase 2: deletion propagation (steps 2–3)</span><span><b>Requirements:</b> <a href="#fr-13">FR-13</a>, <a href="#nfr-04">NFR-04</a>, <a href="#nfr-05">NFR-05</a>, <a href="#nfr-07">NFR-07</a>, <a href="#nfr-09">NFR-09</a></span></div>
 <h4>Description</h4>
 <p>Keep telemetry accessible only to authorized people and honor data retention or deletion policy across all derived stores.</p>
 <h4>Actors</h4>
@@ -1011,7 +1140,7 @@
 <ol class="flow">
 <li>The system enforces project and role checks before disclosing trace fields and records privileged raw-payload access.</li>
 <li>At expiry or authorized erasure, PostgreSQL marks the source records and manages deletion according to the chosen policy.</li>
-<li>A durable deletion/reprojection job removes or invalidates corresponding Qdrant vectors, Neo4j nodes/edges, and any relevant caches.</li>
+<li>A durable deletion job removes or invalidates the matching ClickHouse span rows, pgvector embeddings, evidence snapshots, and any relevant caches. TTL expiry in ClickHouse covers routine retention; this job covers erasure before expiry.</li>
 <li>The system verifies the projection state and keeps an audit record that does not itself re-expose erased content.</li>
 </ol>
 <h4>Alternative flows and exceptions</h4>
@@ -1020,13 +1149,122 @@
 </div>
 <div class="altflow"><h5>UC-13-E1 — Exceptions and recovery</h5>
 <p class="cond"><b>Branch:</b> Steps 1–4 of the main flow, as applicable.</p>
-<p>A projection outage leaves the request pending with a retryable status and blocks reindexing of deleted source material. A legal or operational hold, if implemented, must be a separately authorized and documented rule. A request for data outside the administrator&#x27;s project is denied.</p>
-<p><strong>Disposition:</strong> Deny cross-project requests. A projection outage leaves deletion pending and retryable while preventing deleted-source reindexing. Any hold requires a separately authorized, documented policy.</p>
+<p>A span-store or embedding outage leaves the request pending with a retryable status and blocks reindexing of deleted source material. A legal or operational hold, if implemented, must be a separately authorized and documented rule. A request for data outside the administrator&#x27;s project is denied.</p>
+<p><strong>Disposition:</strong> Deny cross-project requests. A store outage leaves deletion pending and retryable while preventing deleted-source reindexing. Any hold requires a separately authorized, documented policy.</p>
 </div>
 <h4 id="ac-13">Acceptance criteria — AC-13</h4>
-<p>Erased data does not reappear after index rebuilds; access to raw payloads is recorded; error paths do not leak sensitive fields; each project can identify its configured retention and redaction policy.</p>
+<p>Erased data does not reappear after index rebuilds or from evidence snapshots; access to raw payloads is recorded; error paths do not leak sensitive fields; each project can identify its configured retention and redaction policy.</p>
 <h4>Notes</h4>
-<p>Shared rules: <a href="#br-03">BR-03</a>, <a href="#br-06">BR-06</a>. Unresolved configuration and ownership decisions are tracked in <a href="#open-decisions">section 7.3</a>.</p>
+<p>Shared rules: <a href="#br-03">BR-03</a>, <a href="#br-06">BR-06</a>, <a href="#br-11">BR-11</a>. Unresolved configuration and ownership decisions are tracked in <a href="#open-decisions">section 7.3</a>.</p>
+</section>
+<section class="usecase" id="uc-14" aria-labelledby="uc-14-title">
+<h3 id="uc-14-title">UC-14 — Evaluate sampled production traces online</h3>
+<div class="uc-meta"><span><b>Status:</b> Draft</span><span><b>Priority:</b> Must, Phase 2</span><span><b>Scope:</b> Phase 2</span><span><b>Requirements:</b> <a href="#fr-17">FR-17</a>, <a href="#nfr-04">NFR-04</a>, <a href="#nfr-05">NFR-05</a>, <a href="#nfr-10">NFR-10</a>, <a href="#nfr-11">NFR-11</a></span></div>
+<h4>Description</h4>
+<p>Apply the same deterministic detectors used for release gating to production traffic, so policy violations and loops that escape evaluation datasets become visible.</p>
+<h4>Actors</h4>
+<p>Analysis worker. <strong>Beneficiaries:</strong> Agent operator, policy owner.</p>
+<h4>Preconditions</h4>
+<p>The production agent exports traces under UC-03 with a deployed agent version that has a pinned evaluation context. A sampling rate is configured for the project.</p>
+<h4>Trigger</h4>
+<p>A production trace selected by the sampler reaches a terminal completeness state.</p>
+<h4>Postconditions</h4>
+<ul>
+<li><strong>On success:</strong> Findings and per-version finding rates with denominators (sampled, analyzed, inconclusive) are recorded.</li>
+<li><strong>On failure:</strong> Unanalyzed sampled traces are counted as such; rates are never computed over an unstated denominator.</li>
+</ul>
+<h4>Main flow</h4>
+<ol class="flow">
+<li>The sampler selects traces deterministically from the trace ID and the configured rate, so the decision is reproducible. The rate is recorded with each decision.</li>
+<li>The worker runs UC-05, UC-06, and UC-07 deterministic checks against the policy and tool versions pinned to the deployed agent version.</li>
+<li>Confirmed findings snapshot their evidence (<a href="#br-11">BR-11</a>); semantic critics may add advisory findings.</li>
+<li>The system aggregates finding rates by agent version and time window and shows them beside the evaluation results for the same version.</li>
+</ol>
+<h4>Alternative flows and exceptions</h4>
+<div class="altflow"><h5>UC-14-A1 — Cancellation or interruption</h5>
+<p>The operator may lower the sampling rate or pause sampling; traces already sampled continue through analysis. Pausing is recorded so the gap is visible in rates.</p>
+</div>
+<div class="altflow"><h5>UC-14-E1 — Exceptions and recovery</h5>
+<p class="cond"><b>Branch:</b> Steps 1–4 of the main flow, as applicable.</p>
+<p>A trace with no pinned context for its agent version is counted as not analyzable rather than checked against the latest policy. Traces that stay <code>OPEN</code> past the profile timeout are counted as inconclusive. Worker backlog delays results but does not drop sampled traces.</p>
+<p><strong>Disposition:</strong> Unpinned versions and open traces are excluded with explicit counts; backlog is visible as pending analysis.</p>
+</div>
+<h4 id="ac-14">Acceptance criteria — AC-14</h4>
+<p>The refund violation from the reference scenario is detected in a production trace with the same clause and evidence as in evaluation. Every rate shows its numerator, denominator, sampling rate, and exclusions. A production finding never changes a release gate.</p>
+<h4>Notes</h4>
+<p>Shared rules: <a href="#br-01">BR-01</a>, <a href="#br-02">BR-02</a>, <a href="#br-04">BR-04</a>, <a href="#br-06">BR-06</a>, <a href="#br-09">BR-09</a>, <a href="#br-11">BR-11</a>. Sampling rates and retention are open in <a href="#open-decisions">section 7.3</a>.</p>
+</section>
+<section class="usecase" id="uc-15" aria-labelledby="uc-15-title">
+<h3 id="uc-15-title">UC-15 — Inspect a multi-turn session</h3>
+<div class="uc-meta"><span><b>Status:</b> Draft</span><span><b>Priority:</b> Must, Phase 2</span><span><b>Scope:</b> Phase 2</span><span><b>Requirements:</b> <a href="#fr-18">FR-18</a>, <a href="#nfr-03">NFR-03</a>, <a href="#nfr-04">NFR-04</a>, <a href="#nfr-07">NFR-07</a></span></div>
+<h4>Description</h4>
+<p>Group the traces of one conversation so a developer can follow the agent across turns and policies can depend on earlier turns, such as an approval granted in a previous turn.</p>
+<h4>Actors</h4>
+<p>Agent developer, agent operator. <strong>Supporting actor:</strong> Analysis worker.</p>
+<h4>Preconditions</h4>
+<p>Traces carry a session identifier (the semconv conversation ID or the profile’s session attribute).</p>
+<h4>Trigger</h4>
+<p>The user opens a session, or a session-scoped policy needs evaluation.</p>
+<h4>Postconditions</h4>
+<ul>
+<li><strong>On success:</strong> The session timeline lists turns in order with per-turn outcome, behavior, and findings; session-scoped checks are recorded.</li>
+<li><strong>On failure:</strong> Missing turns are shown as gaps; session-scoped checks touching a gap are inconclusive.</li>
+</ul>
+<h4>Main flow</h4>
+<ol class="flow">
+<li>The system orders the session’s traces and shows each turn with its outcome, behavioral state, and findings.</li>
+<li>The worker evaluates session-scoped policy clauses over the ordered turns, so a required prior step may appear in an earlier turn.</li>
+<li>The user opens any turn in the trace view (<a href="#uc-04">UC-04</a>).</li>
+</ol>
+<h4>Alternative flows and exceptions</h4>
+<div class="altflow"><h5>UC-15-A1 — Cancellation or interruption</h5>
+<p>The user may leave the session view at any time; nothing changes.</p>
+</div>
+<div class="altflow"><h5>UC-15-E1 — Exceptions and recovery</h5>
+<p class="cond"><b>Branch:</b> Steps 1–2 of the main flow, as applicable.</p>
+<p>A session whose earlier turns are missing, unsampled, or expired cannot support an absence claim that depends on those turns (<a href="#br-02">BR-02</a>). A session spanning agent versions shows the version per turn.</p>
+<p><strong>Disposition:</strong> Gaps make dependent checks inconclusive; per-turn versions remain visible.</p>
+</div>
+<h4 id="ac-15">Acceptance criteria — AC-15</h4>
+<p>An approval in turn 1 satisfies a refund prerequisite in turn 2 when the policy is session-scoped. A missing turn 1 yields inconclusive, not a violation. Turn order and versions are preserved.</p>
+<h4>Notes</h4>
+<p>Shared rules: <a href="#br-02">BR-02</a>, <a href="#br-03">BR-03</a>, <a href="#br-04">BR-04</a>. Sampling must keep or drop whole sessions for session-scoped checks to be meaningful.</p>
+</section>
+<section class="usecase" id="uc-16" aria-labelledby="uc-16-title">
+<h3 id="uc-16-title">UC-16 — Monitor usage, cost, and latency</h3>
+<div class="uc-meta"><span><b>Status:</b> Draft</span><span><b>Priority:</b> Must, Phase 2</span><span><b>Scope:</b> Phase 2</span><span><b>Requirements:</b> <a href="#fr-19">FR-19</a>, <a href="#nfr-04">NFR-04</a>, <a href="#nfr-11">NFR-11</a></span></div>
+<h4>Description</h4>
+<p>Show how much an agent consumes and how fast it responds, by version, model, and tool, alongside its behavioral results.</p>
+<h4>Actors</h4>
+<p>Agent operator, evaluation engineer.</p>
+<h4>Preconditions</h4>
+<p>Spans carry token counts, model identifiers, and timings where the agent reports them. Cost uses a versioned price table configured per project.</p>
+<h4>Trigger</h4>
+<p>The user opens the usage dashboard or filters it.</p>
+<h4>Postconditions</h4>
+<ul>
+<li><strong>On success:</strong> Aggregates show values, coverage (share of spans that reported the metric), and the price-table version used.</li>
+<li><strong>On failure:</strong> Unavailable aggregates are labeled; no partial total is presented as complete.</li>
+</ul>
+<h4>Main flow</h4>
+<ol class="flow">
+<li>The system aggregates tokens, cost, and latency percentiles from the span store by project, agent version, model, tool, and time window.</li>
+<li>The user compares versions and opens contributing traces.</li>
+<li>Behavioral finding rates for the same filter appear beside usage, so a cheaper version that violates more policies is visible as such.</li>
+</ol>
+<h4>Alternative flows and exceptions</h4>
+<div class="altflow"><h5>UC-16-A1 — Cancellation or interruption</h5>
+<p>The user may leave the dashboard at any time; nothing changes.</p>
+</div>
+<div class="altflow"><h5>UC-16-E1 — Exceptions and recovery</h5>
+<p class="cond"><b>Branch:</b> Steps 1–3 of the main flow, as applicable.</p>
+<p>Unreported token or cost values stay null and lower the coverage figure; they are never summed as zero. A model missing from the price table yields unknown cost for its spans.</p>
+<p><strong>Disposition:</strong> Show coverage and unknowns explicitly.</p>
+</div>
+<h4 id="ac-16">Acceptance criteria — AC-16</h4>
+<p>Totals state their coverage; null usage is never displayed as zero; every cost figure names its price-table version; dashboards respect project boundaries.</p>
+<h4>Notes</h4>
+<p>Shared rules: <a href="#br-03">BR-03</a>, <a href="#br-06">BR-06</a>. Query latency targets are open (<a href="#nfr-11">NFR-11</a>).</p>
 </section>
 <h3 id="reference-scenario">10.2 Reference end-to-end scenario</h3>
 <p><strong>Policy:</strong> <code>REFUND-004</code> version 3 requires a policy lookup and human approval before a refund above $500.</p>
@@ -1035,27 +1273,29 @@
 <thead><tr><th scope="col">Step</th><th scope="col">Action</th><th scope="col">Expected observable result</th></tr></thead>
 <tbody>
 <tr><td>1</td><td>Register <code>support-agent</code> version 1.5 and applicable policy/workflow versions</td><td>Immutable evaluation context</td></tr>
-<tr><td>2</td><td>Customer CI runs case <code>refund-1024</code> with requested amount $800</td><td>Trace with case ID and agent version</td></tr>
+<tr><td>2</td><td>Customer CI runs case <code>refund-1024</code> with requested amount $800, <em>k</em> times</td><td>One trace per trial with case ID, trial number, agent version, and completion signal</td></tr>
 <tr><td>3</td><td>Agent calls <code>find_order(1024)</code> then <code>refund_order(1024, 800)</code></td><td>Complete trace; no approval span in the relevant interval</td></tr>
 <tr><td>4</td><td>Agent returns “Your refund has been completed”</td><td>Outcome may be <code>SUCCESS</code> if the tool result confirms it</td></tr>
-<tr><td>5</td><td>AgentProof evaluates ordering and prerequisites</td><td><code>POLICY_VIOLATION</code> with tool span and <code>REFUND-004</code> v3 evidence</td></tr>
-<tr><td>6</td><td>Evidence validator verifies source values and completeness</td><td>Confirmed finding; RCA may recommend a tool-boundary approval precondition</td></tr>
-<tr><td>7</td><td>Version comparison and mandatory gate run</td><td><code>FAIL</code> if the configured violation limit is breached; CI stops promotion</td></tr>
+<tr><td>5</td><td>AgentProof evaluates the clause predicate (<code>amount &gt; 500</code>) and the required prior steps deterministically</td><td><code>POLICY_VIOLATION</code> with tool span and <code>REFUND-004</code> v3 evidence; no LLM involved</td></tr>
+<tr><td>6</td><td>Evidence validator verifies source values and completeness</td><td>Confirmed finding with evidence snapshot; in Phase 2 an RCA may recommend a tool-boundary approval precondition</td></tr>
+<tr><td>7</td><td>Comparison with v1.4 and mandatory gate run</td><td><code>FAIL</code> if the violation occurs in any trial; the CI client exits with the FAIL code and CI stops promotion</td></tr>
 </tbody>
 </table>
 </div>
-<p>If the approval interval is missing from telemetry, step 5 is <strong>inconclusive</strong> rather than a confirmed violation. If semantic analysis required by the gate cannot complete, step 7 is <code>ERROR</code> and CI still stops automatic promotion.</p>
+<p>If the approval interval is missing from telemetry, step 5 is <strong>inconclusive</strong> rather than a confirmed violation. If analysis required by the gate cannot complete, step 7 is <code>ERROR</code> and CI still stops automatic promotion. Advisory semantic findings do not change step 7 unless a reviewer confirms them (<a href="#br-10">BR-10</a>).</p>
 <h3 id="release-acceptance">10.3 Release acceptance for the first complete slice</h3>
 <ol>
-<li id="ra-01"><b>RA-01.</b> A customer-support agent exports a trace containing the reference tools <code>find_customer</code>, <code>find_order</code>, <code>lookup_policy</code>, <code>request_approval</code>, <code>refund_order</code>, and <code>send_email</code> where applicable.</li>
-<li id="ra-02"><b>RA-02.</b> Ingestion accepts and normalizes traces idempotently, records completeness, and recovers accepted work after a worker or queue interruption.</li>
+<li id="ra-01"><b>RA-01.</b> A customer-support agent exports OTLP spans following the pinned AgentProof profile, containing the reference tools <code>find_customer</code>, <code>find_order</code>, <code>lookup_policy</code>, <code>request_approval</code>, <code>refund_order</code>, and <code>send_email</code> where applicable.</li>
+<li id="ra-02"><b>RA-02.</b> Ingestion accepts and normalizes traces idempotently. It marks a trace complete only on the completion signal, and recovers accepted work after a worker or queue interruption.</li>
 <li id="ra-03"><b>RA-03.</b> The five initial failure classes <code>WRONG_TOOL</code>, <code>INVALID_ARGUMENT</code>, <code>ACTION_LOOP</code>, <code>RETRIEVAL_LOOP</code>, and <code>POLICY_VIOLATION</code> have controlled positive and negative scenarios.</li>
 <li id="ra-04"><b>RA-04.</b> Every confirmed finding leads to validated, project-authorized evidence and the exact policy or tool-specification version.</li>
 <li id="ra-05"><b>RA-05.</b> The Trace Explorer shows a successful outcome with a failed behavioral result for the high-value refund case.</li>
 <li id="ra-06"><b>RA-06.</b> Two agent versions can be evaluated on the same pinned dataset; comparison exposes missing data and incompatible inputs.</li>
-<li id="ra-07"><b>RA-07.</b> A mandatory regression gate returns <code>FAIL</code> for the policy regression, while incomplete or unavailable required analysis returns <code>ERROR</code>.</li>
+<li id="ra-07"><b>RA-07.</b> A mandatory regression gate returns <code>FAIL</code> for the policy regression, while incomplete or unavailable required analysis returns <code>ERROR</code>. The CI client exits with a distinct code for each result.</li>
 <li id="ra-08"><b>RA-08.</b> A reviewer can annotate findings without mutating canonical trace or machine-generated evidence.</li>
 <li id="ra-09"><b>RA-09.</b> The complete demonstration is exercised through the local deployment with backend integration and browser end-to-end tests.</li>
+<li id="ra-10"><b>RA-10.</b> With <em>k</em> &gt; 1 trials, a case that violates the policy in only one trial still fails the mandatory gate, and the comparison lists it as flaky rather than as a clean pass.</li>
+<li id="ra-11"><b>RA-11.</b> The labeled scenario suite reports per-class precision, recall, and the INCONCLUSIVE rate; deterministic detectors have no errors on it (<a href="#nfr-10">NFR-10</a>).</li>
 </ol>
 <p>These are planned acceptance checks. This document records no executed product tests or release approval.</p>
 <h2 id="traceability">11. Traceability matrix</h2>
@@ -1077,15 +1317,23 @@
 <tr><td><a href="#fr-11">FR-11</a></td><td><a href="#uc-11">UC-11</a></td><td><a href="#ac-11">AC-11</a></td><td>Not verified</td></tr>
 <tr><td><a href="#fr-12">FR-12</a></td><td><a href="#uc-12">UC-12</a></td><td><a href="#ac-12">AC-12</a></td><td>Not verified</td></tr>
 <tr><td><a href="#fr-13">FR-13</a></td><td><a href="#uc-13">UC-13</a></td><td><a href="#ac-13">AC-13</a></td><td>Not verified</td></tr>
+<tr><td><a href="#fr-14">FR-14</a></td><td><a href="#uc-10">UC-10</a>, <a href="#uc-11">UC-11</a>, <a href="#uc-12">UC-12</a></td><td><a href="#ac-10">AC-10</a>, <a href="#ac-11">AC-11</a>, <a href="#ra-10">RA-10</a></td><td>Not verified</td></tr>
+<tr><td><a href="#fr-15">FR-15</a></td><td><a href="#uc-02">UC-02</a></td><td><a href="#ac-02">AC-02</a></td><td>Not verified</td></tr>
+<tr><td><a href="#fr-16">FR-16</a></td><td><a href="#uc-12">UC-12</a></td><td><a href="#ac-12">AC-12</a>, <a href="#ra-07">RA-07</a></td><td>Not verified</td></tr>
+<tr><td><a href="#fr-17">FR-17</a></td><td><a href="#uc-14">UC-14</a></td><td><a href="#ac-14">AC-14</a></td><td>Not verified (Phase 2)</td></tr>
+<tr><td><a href="#fr-18">FR-18</a></td><td><a href="#uc-15">UC-15</a></td><td><a href="#ac-15">AC-15</a></td><td>Not verified (Phase 2)</td></tr>
+<tr><td><a href="#fr-19">FR-19</a></td><td><a href="#uc-16">UC-16</a></td><td><a href="#ac-16">AC-16</a></td><td>Not verified (Phase 2)</td></tr>
 <tr><td><a href="#nfr-01">NFR-01</a></td><td><a href="#uc-03">UC-03</a></td><td><a href="#nfr-01">Target and verification</a></td><td>Not verified</td></tr>
 <tr><td><a href="#nfr-02">NFR-02</a></td><td><a href="#uc-05">UC-05</a>, <a href="#uc-06">UC-06</a>, <a href="#uc-07">UC-07</a></td><td><a href="#nfr-02">Target and verification</a></td><td>Not verified</td></tr>
-<tr><td><a href="#nfr-03">NFR-03</a></td><td><a href="#uc-04">UC-04</a></td><td><a href="#nfr-03">Target and verification</a></td><td>Not verified</td></tr>
-<tr><td><a href="#nfr-04">NFR-04</a></td><td><a href="#uc-01">UC-01</a>, <a href="#uc-02">UC-02</a>, <a href="#uc-03">UC-03</a>, <a href="#uc-04">UC-04</a>, <a href="#uc-05">UC-05</a>, <a href="#uc-06">UC-06</a>, <a href="#uc-07">UC-07</a>, <a href="#uc-08">UC-08</a>, <a href="#uc-09">UC-09</a>, <a href="#uc-10">UC-10</a>, <a href="#uc-11">UC-11</a>, <a href="#uc-12">UC-12</a>, <a href="#uc-13">UC-13</a></td><td><a href="#nfr-04">Target and verification</a></td><td>Not verified</td></tr>
-<tr><td><a href="#nfr-05">NFR-05</a></td><td><a href="#uc-03">UC-03</a>, <a href="#uc-05">UC-05</a>, <a href="#uc-06">UC-06</a>, <a href="#uc-07">UC-07</a>, <a href="#uc-08">UC-08</a>, <a href="#uc-10">UC-10</a>, <a href="#uc-13">UC-13</a></td><td><a href="#nfr-05">Target and verification</a></td><td>Not verified</td></tr>
+<tr><td><a href="#nfr-03">NFR-03</a></td><td><a href="#uc-04">UC-04</a>, <a href="#uc-15">UC-15</a></td><td><a href="#nfr-03">Target and verification</a></td><td>Not verified</td></tr>
+<tr><td><a href="#nfr-04">NFR-04</a></td><td><a href="#uc-01">UC-01</a>, <a href="#uc-02">UC-02</a>, <a href="#uc-03">UC-03</a>, <a href="#uc-04">UC-04</a>, <a href="#uc-05">UC-05</a>, <a href="#uc-06">UC-06</a>, <a href="#uc-07">UC-07</a>, <a href="#uc-08">UC-08</a>, <a href="#uc-09">UC-09</a>, <a href="#uc-10">UC-10</a>, <a href="#uc-11">UC-11</a>, <a href="#uc-12">UC-12</a>, <a href="#uc-13">UC-13</a>, <a href="#uc-14">UC-14</a>, <a href="#uc-15">UC-15</a>, <a href="#uc-16">UC-16</a></td><td><a href="#nfr-04">Target and verification</a></td><td>Not verified</td></tr>
+<tr><td><a href="#nfr-05">NFR-05</a></td><td><a href="#uc-03">UC-03</a>, <a href="#uc-05">UC-05</a>, <a href="#uc-06">UC-06</a>, <a href="#uc-07">UC-07</a>, <a href="#uc-08">UC-08</a>, <a href="#uc-10">UC-10</a>, <a href="#uc-13">UC-13</a>, <a href="#uc-14">UC-14</a></td><td><a href="#nfr-05">Target and verification</a></td><td>Not verified</td></tr>
 <tr><td><a href="#nfr-06">NFR-06</a></td><td><a href="#uc-02">UC-02</a>, <a href="#uc-04">UC-04</a>, <a href="#uc-05">UC-05</a>, <a href="#uc-06">UC-06</a>, <a href="#uc-07">UC-07</a>, <a href="#uc-08">UC-08</a>, <a href="#uc-09">UC-09</a>, <a href="#uc-10">UC-10</a>, <a href="#uc-11">UC-11</a>, <a href="#uc-12">UC-12</a></td><td><a href="#nfr-06">Target and verification</a></td><td>Not verified</td></tr>
-<tr><td><a href="#nfr-07">NFR-07</a></td><td><a href="#uc-01">UC-01</a>, <a href="#uc-03">UC-03</a>, <a href="#uc-04">UC-04</a>, <a href="#uc-08">UC-08</a>, <a href="#uc-13">UC-13</a></td><td><a href="#nfr-07">Target and verification</a></td><td>Not verified</td></tr>
+<tr><td><a href="#nfr-07">NFR-07</a></td><td><a href="#uc-01">UC-01</a>, <a href="#uc-03">UC-03</a>, <a href="#uc-04">UC-04</a>, <a href="#uc-08">UC-08</a>, <a href="#uc-13">UC-13</a>, <a href="#uc-15">UC-15</a></td><td><a href="#nfr-07">Target and verification</a></td><td>Not verified</td></tr>
 <tr><td><a href="#nfr-08">NFR-08</a></td><td><a href="#uc-10">UC-10</a>, <a href="#uc-11">UC-11</a>, <a href="#uc-12">UC-12</a></td><td><a href="#nfr-08">Target and verification</a></td><td>Not verified</td></tr>
 <tr><td><a href="#nfr-09">NFR-09</a></td><td><a href="#uc-01">UC-01</a>, <a href="#uc-09">UC-09</a>, <a href="#uc-12">UC-12</a>, <a href="#uc-13">UC-13</a></td><td><a href="#nfr-09">Target and verification</a></td><td>Not verified</td></tr>
+<tr><td><a href="#nfr-10">NFR-10</a></td><td><a href="#uc-05">UC-05</a>, <a href="#uc-06">UC-06</a>, <a href="#uc-07">UC-07</a>, <a href="#uc-08">UC-08</a>, <a href="#uc-14">UC-14</a></td><td><a href="#ra-11">RA-11</a></td><td>Not verified</td></tr>
+<tr><td><a href="#nfr-11">NFR-11</a></td><td><a href="#uc-14">UC-14</a>, <a href="#uc-16">UC-16</a></td><td>Targets not yet defined</td><td>Not verified (Phase 2)</td></tr>
 </tbody>
 </table>
 </div>
@@ -1114,7 +1362,14 @@
 <tr><td>OpenTelemetry / OTLP</td><td>Telemetry conventions and the OpenTelemetry Protocol used to export agent execution spans.</td></tr>
 <tr><td>Semantic critic / RCA</td><td>A focused model-assisted evaluator; root-cause analysis explaining validated findings while labeling uncertainty and hypotheses.</td></tr>
 <tr><td>Evidence validator</td><td>An independent check of source identifiers, versions, values, relationships, metrics, and access before confirming claims.</td></tr>
-<tr><td>Projection / idempotency / outbox</td><td>A rebuildable derived view; safe repetition without duplicate effects; a durable job-publication record used to recover delivery.</td></tr>
+<tr><td>Projection / idempotency / outbox</td><td>A rebuildable derived view (in version 0.2, pgvector embeddings); safe repetition without duplicate effects; a durable job-publication record used to recover delivery.</td></tr>
+<tr><td>Trial / pass^k</td><td>One execution of a case; a case runs <em>k</em> trials. pass^k is the probability that all <em>k</em> trials of a case succeed, as used by τ-bench to measure consistency.</td></tr>
+<tr><td>Flaky case</td><td>A case whose trials disagree on outcome or behavior.</td></tr>
+<tr><td>AgentProof profile</td><td>The pinned OpenTelemetry GenAI semantic-convention version plus <code>agentproof.*</code> attributes (project, agent version, case, trial, session, approval, completion) that AgentProof requires from traces.</td></tr>
+<tr><td>Policy predicate</td><td>The machine-checkable form of a policy clause in the versioned JSON predicate schema: an applicability condition plus required prior steps or forbidden transitions.</td></tr>
+<tr><td>Advisory finding</td><td>A semantic finding that is shown but excluded from gates until a reviewer confirms it (<a href="#br-10">BR-10</a>).</td></tr>
+<tr><td>Evidence snapshot</td><td>Redacted span fields copied into PostgreSQL when a finding is confirmed, so the evidence outlives span-store retention (<a href="#br-11">BR-11</a>).</td></tr>
+<tr><td>Session / sampling</td><td>A group of traces from one conversation; the deterministic, rate-based selection of production traces for online evaluation.</td></tr>
 <tr><td>Deterministic / statistical check</td><td>A rule-based check with stable results for identical inputs; a measurement-based detector comparing usage or baseline distributions.</td></tr>
 <tr><td>p95 / SLO</td><td>The 95th percentile of measured latency; a service-level objective. Draft p95 targets are not production guarantees.</td></tr>
 <tr><td>WRONG_TOOL / INVALID_ARGUMENT</td><td>A tool unsuitable for the task, or an invocation that violates a schema, permitted range, or observed domain constraint.</td></tr>
@@ -1122,8 +1377,9 @@
 <tr><td>NO_PROGRESS / INEFFICIENT_TRAJECTORY</td><td>Additional efficiency finding types for insufficient progress or unnecessary work; semantic expansion may follow the MVP.</td></tr>
 <tr><td>POLICY_VIOLATION</td><td>A validated breach of an applicable versioned policy, including a missing required approval where trace completeness supports the claim.</td></tr>
 <tr><td>MVP / first complete slice</td><td>The initial product scope / the integrated local demonstration spanning ingestion, analysis, investigation, comparison, and a CI gate.</td></tr>
-<tr><td>Auth0 / Traefik Hub / FastAPI</td><td>Planned identity provider, API gateway, and application API framework.</td></tr>
-<tr><td>PostgreSQL / Redis / Qdrant / Neo4j / LangGraph</td><td>Planned authoritative database, work queue, semantic index, graph projection, and semantic-critic orchestration framework.</td></tr>
+<tr><td>Auth0 / Traefik Proxy / FastAPI</td><td>Identity provider; edge router applying rate and body limits; application API framework that validates tokens. All three are present in the repository.</td></tr>
+<tr><td>PostgreSQL / pgvector / ClickHouse / Redis / LangGraph</td><td>Authoritative control-plane database; its vector extension for semantic retrieval; span and usage store (Phase 2); work queue; semantic-critic orchestration framework. Neo4j and Qdrant, named in version 0.1, are no longer used.</td></tr>
+<tr><td>Ollama</td><td>Local model runtime serving the critic model (<code>LLM_MODEL</code>) in the reference deployment.</td></tr>
 </tbody>
 </table>
 </div>
@@ -1132,13 +1388,29 @@
 <table>
 <thead><tr><th scope="col">Document</th><th scope="col">Version / status used</th><th scope="col">Location</th></tr></thead>
 <tbody>
-<tr><td>AgentProof README</td><td>Workspace copy read 27 September 2026; architecture and implementation plan; no release version specified</td><td><a href="../README.md">README.md</a></td></tr>
-<tr><td>AgentProof use case specification</td><td>Draft dated 27 September 2026; source for UC-01 through UC-13, shared rules, and acceptance scenarios</td><td><a href="../USECASE_SPECIFICATION.md">USECASE_SPECIFICATION.md</a></td></tr>
-<tr><td>HTML use case template</td><td>Original unversioned template supplied in this location; layout and section structure adapted for this draft</td><td>docs/USECASE_SPECIFICATION.html (this document replaces the template)</td></tr>
+<tr><td>AgentProof README</td><td>Workspace copy read 24 October 2026; still describes Traefik Hub, Neo4j, and Qdrant, which version 0.2 supersedes</td><td><a href="../README.md">README.md</a></td></tr>
+<tr><td>AgentProof use case specification 0.1</td><td>Draft dated 27 September 2026; its Markdown source is not in the repository</td><td>Earlier revision of this file</td></tr>
+<tr><td>Repository schema, seed, and Compose</td><td>Read 24 October 2026; used to check the reference scenario, finding types, and edge configuration</td><td><code>database/postgresql/</code>, <code>docker/docker-compose.yml</code>, <code>backend/src/core/</code></td></tr>
+<tr><td>LangSmith trajectory evaluations (agentevals)</td><td>Vendor documentation, read October 2026</td><td><a href="https://docs.langchain.com/langsmith/trajectory-evals">docs.langchain.com</a></td></tr>
+<tr><td>Vertex AI: Evaluate Gen AI agents</td><td>Vendor documentation, read October 2026</td><td><a href="https://docs.cloud.google.com/vertex-ai/generative-ai/docs/models/evaluation-agents">docs.cloud.google.com</a></td></tr>
+<tr><td>Microsoft Foundry agent evaluators</td><td>Vendor documentation (preview), read October 2026</td><td><a href="https://learn.microsoft.com/en-us/azure/ai-foundry/concepts/evaluation-evaluators/agent-evaluators">learn.microsoft.com</a></td></tr>
+<tr><td>Amazon Bedrock AgentCore Policy and Evaluations</td><td>AWS announcement, December 2025 (preview)</td><td><a href="https://aws.amazon.com/about-aws/whats-new/2025/12/amazon-bedrock-agentcore-policy-evaluations-preview">aws.amazon.com</a></td></tr>
+<tr><td>Snyk Labs: Invariant Labs</td><td>Vendor page; acquisition announced 24 June 2025</td><td><a href="https://labs.snyk.io/resources/snyk-labs-invariant-labs">labs.snyk.io</a></td></tr>
+<tr><td>MLflow 3: Evaluating agents</td><td>Project documentation, version 3.4</td><td><a href="https://mlflow.org/docs/3.4.0/genai/eval-monitor/running-evaluation/agents">mlflow.org</a></td></tr>
+<tr><td>Galileo agent evaluation blueprint</td><td>Vendor blog; agent metric definitions</td><td><a href="https://galileo.ai/blog/the-ai-agent-evaluation-blueprint-part-1">galileo.ai</a></td></tr>
+<tr><td>TRAIL: Trace Reasoning and Agentic Issue Localization</td><td>arXiv 2505.08638</td><td><a href="https://arxiv.org/abs/2505.08638">arxiv.org</a></td></tr>
+<tr><td>AgentSpec: Customizable Runtime Enforcement for Safe and Reliable LLM Agents</td><td>arXiv 2503.18666 (ICSE 2026)</td><td><a href="https://arxiv.org/abs/2503.18666">arxiv.org</a></td></tr>
+<tr><td>AgentLTL: trace verification for tool-using agents</td><td>arXiv 2607.02599, July 2026</td><td><a href="https://arxiv.org/abs/2607.02599">arxiv.org</a></td></tr>
+<tr><td>τ²-bench</td><td>Benchmark overview</td><td><a href="https://benchmarkingagents.com/tau2-bench">benchmarkingagents.com</a></td></tr>
+<tr><td>OpenTelemetry GenAI semantic conventions</td><td>Status Development, October 2026</td><td><a href="https://github.com/open-telemetry/semantic-conventions-genai">github.com</a></td></tr>
+<tr><td>ClickHouse acquires Langfuse</td><td>Orrick announcement, January 2026</td><td><a href="https://www.orrick.com/en/News/2026/01/Open-source-LLM-Observability-Langfuse-Acquired-by-ClickHouse-Inc">orrick.com</a></td></tr>
+<tr><td>Cisco acquires Galileo</td><td>Cisco blog; completion noted 22 May 2026</td><td><a href="https://blogs.cisco.com/news/Cisco-announces-the-intent-to-acquire-galileo">blogs.cisco.com</a></td></tr>
+<tr><td>OpenAI to acquire Promptfoo</td><td>OpenAI announcement, 9 March 2026</td><td><a href="https://openai.com/index/openai-to-acquire-promptfoo/">openai.com</a></td></tr>
+<tr><td>EU AI Act high-risk deadline deferral</td><td>Sidley Data Matters, 22 June 2026</td><td><a href="https://datamatters.sidley.com/2026/06/22/eu-lawmakers-reach-provisional-agreement-to-delay-key-eu-ai-act-obligations/">datamatters.sidley.com</a></td></tr>
 </tbody>
 </table>
 </div>
-<footer><hr><p>AgentProof · AP-UC-001 · Version 0.1 · Draft · 27 September 2026</p><p><a href="#contents">Back to contents</a></p></footer>
+<footer><hr><p>AgentProof · AP-UC-001 · Version 0.2 · Draft · 24 October 2026</p><p><a href="#contents">Back to contents</a></p></footer>
 </main>
 </body>
 </html>

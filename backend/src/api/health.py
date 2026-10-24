@@ -27,8 +27,6 @@ async def ready(request: Request) -> JSONResponse:
     checks = {
         "postgres": postgres(),
         "redis": s.redis.ping(),
-        "qdrant": s.qdrant.get_collections(),
-        "neo4j": s.neo4j.verify_connectivity(),
     }
     results = await asyncio.gather(
         *(asyncio.wait_for(c, timeout=3) for c in checks.values()), return_exceptions=True

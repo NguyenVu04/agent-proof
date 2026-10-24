@@ -34,7 +34,7 @@ test-results/
 playwright-report/
 playwright/.cache/
 
-# Local datastore volumes (Postgres, Redis, Qdrant, Neo4j)
+# Local datastore volumes (Postgres, Redis)
 docker/data/
 
 # Logs

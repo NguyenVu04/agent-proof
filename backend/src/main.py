@@ -7,8 +7,6 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from neo4j import AsyncGraphDatabase
-from qdrant_client import AsyncQdrantClient
 from redis.asyncio import Redis
 
 from api import auth, health
@@ -24,14 +22,8 @@ logger = logging.getLogger("agentproof.api")
 async def lifespan(app: FastAPI):
     # All clients connect lazily; nothing here touches the network.
     app.state.redis = Redis.from_url(settings.REDIS_URL)
-    app.state.qdrant = AsyncQdrantClient(url=settings.QDRANT_URL, api_key=settings.QDRANT_API_KEY)
-    app.state.neo4j = AsyncGraphDatabase.driver(
-        settings.NEO4J_URI, auth=(settings.NEO4J_USER, settings.NEO4J_PASSWORD)
-    )
     yield
     await app.state.redis.aclose()
-    await app.state.qdrant.close()
-    await app.state.neo4j.close()
     await engine.dispose()
 
 
