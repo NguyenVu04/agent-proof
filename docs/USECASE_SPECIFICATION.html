@@ -234,6 +234,18 @@
   }
   .altflow .cond { color: var(--muted); font-size: .88rem; margin-bottom: .5rem; }
 
+  .uc-diagram {
+    margin: 1rem 0;
+    padding: .9rem 1.1rem;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: rgba(255, 255, 255, .02);
+    overflow-x: auto;
+  }
+  .uc-diagram figcaption { margin: 0 0 .5rem; font-size: .95rem; font-weight: 600; color: var(--heading); }
+  .uc-diagram pre { margin: 0; }
+  .uc-diagram svg { display: block; margin: 0 auto; }
+
   /* --- Contents ---------------------------------------------------------- */
 
   nav.toc ol { columns: 2; column-gap: 2.5rem; padding-left: 1.4rem; }
@@ -269,7 +281,7 @@
     main { max-width: none; }
     section.usecase, table { break-inside: auto; }
     h3, h4, h5, .uc-meta { break-after: avoid; }
-    tr, .altflow, .note { break-inside: avoid; }
+    tr, .altflow, .note, .uc-diagram { break-inside: avoid; }
     thead { display: table-header-group; }
     .table-wrap { overflow: visible; }
     th { white-space: normal; }
@@ -288,7 +300,7 @@
 <main>
 <header class="doc">
   <h1>AgentProof — Use Case Specification</h1>
-  <p class="subtitle">AP-UC-001 · Version 0.2 · Draft · 24 October 2026</p>
+  <p class="subtitle">AP-UC-001 · Version 0.3 · Draft · 28 October 2026</p>
 </header>
 <div class="note" data-marker="DOCUMENT STATUS">
   <p>This document specifies intended product behavior. It does not certify an implemented feature, working API, deployment, or measured service level. Version 0.2 revises the 27 September 2026 draft against the repository as of 24 October 2026 and a survey of comparable products (section 3.1); the decisions behind the changes are recorded in section 7.4.</p>
@@ -298,12 +310,12 @@
 <table>
 <thead><tr><th scope="col">Field</th><th scope="col">Value</th></tr></thead>
 <tbody>
-<tr><td>Document ID / version</td><td>AP-UC-001 / 0.2 (identifiers assigned to this HTML draft)</td></tr>
+<tr><td>Document ID / version</td><td>AP-UC-001 / 0.3 (identifiers assigned to this HTML draft)</td></tr>
 <tr><td>Project</td><td>AgentProof</td></tr>
 <tr><td>Status</td><td>Draft; no approval recorded</td></tr>
-<tr><td>Prepared by</td><td>0.1: Codex, adapting the supplied project documents. 0.2: Claude Code, revising against the repository and a market survey at the requester’s direction; options chosen by the requester (section 7.4)</td></tr>
+<tr><td>Prepared by</td><td>0.1: Codex, adapting the supplied project documents. 0.2: Claude Code, revising against the repository and a market survey at the requester’s direction; options chosen by the requester (section 7.4). 0.3: Claude Code, adding user-flow diagrams drawn from each use case's existing text</td></tr>
 <tr><td>Accountable owner / sponsor</td><td>Not assigned in the source materials</td></tr>
-<tr><td>Created / updated</td><td>27 September 2026 / 24 October 2026</td></tr>
+<tr><td>Created / updated</td><td>27 September 2026 / 28 October 2026</td></tr>
 <tr><td>Next review</td><td>Before first-slice acceptance; calendar date not scheduled</td></tr>
 <tr><td>Classification / distribution</td><td>No classification or distribution policy supplied; intended readers are project, engineering, review, and operations stakeholders</td></tr>
 <tr><td>Local source documents</td><td><a href="../README.md">README.md</a>, <code>database/postgresql/01_init.sql</code> and <code>02_seed.sql</code>, <code>docker/docker-compose.yml</code>; no remote source-of-record URL supplied. The earlier source <code>USECASE_SPECIFICATION.md</code> is not in the repository; this HTML file is now the only copy.</td></tr>
@@ -317,6 +329,7 @@
 <tbody>
 <tr><td>0.1</td><td>2026-09-27</td><td>Populate the HTML template with all 13 AgentProof use cases, derived requirements, traceability, and release acceptance.</td><td>Not approved</td></tr>
 <tr><td>0.2</td><td>2026-10-24</td><td>Reposition as an agent observability platform with an evidence-validated behavioral layer; add market landscape (3.1) and decision register (7.4); replace Qdrant/Neo4j with pgvector and ClickHouse; correct the edge-auth constraint to match the repository; add repeated trials (pass^k), advisory semantic critics, tool-spec import, CI client, detector-quality NFR; add UC-14–UC-16 (Phase 2).</td><td>Not approved</td></tr>
+<tr><td>0.3</td><td>2026-10-28</td><td>Add a user-flow diagram (Mermaid) to each use case, derived from its trigger, main flow, alternative flows, and postconditions; no behavior changed.</td><td>Not approved</td></tr>
 </tbody>
 </table>
 </div>
@@ -691,6 +704,21 @@
 <li>For resource access, FastAPI verifies the resource belongs to the project and the actor is allowed to access that project.</li>
 <li>The system performs the operation and records an audit event where required.</li>
 </ol>
+<figure class="uc-diagram">
+<figcaption>UC-01 — Enter a project and authorize access</figcaption>
+<pre class="mermaid">
+flowchart TD
+  T(["Actor requests a protected API operation"]) --&gt; S1["1 · Auth0 issues access token for the API audience and scopes"]
+  S1 --&gt; S2["2 · Traefik routes request, applies rate and body limits"]
+  S2 --&gt; S3{{"3 · Token valid and operation authorized?"}}
+  S3 --&gt;|"no"| F(["Denied · no cross-project data disclosed"]):::err
+  S3 --&gt;|"yes"| S4{{"4 · Resource in project and actor allowed?"}}
+  S4 --&gt;|"no"| F
+  S4 --&gt;|"yes"| S5["5 · Perform operation, record audit event"]
+  S5 --&gt; OK(["Authorized operation proceeds"]):::ok
+  T -.-&gt;|"abandon before request"| C(["No operation occurs"]):::muted
+</pre>
+</figure>
 <h4>Alternative flows and exceptions</h4>
 <div class="altflow"><h5>UC-01-A1 — Cancellation or interruption</h5>
 <p>Before token issuance or submission of the protected request, the actor may abandon the flow. No requested operation occurs. Abandoning a client does not undo an operation already authorized and performed.</p>
@@ -730,6 +758,23 @@
 <li>The system validates references between policies, tools, and workflow steps, and records immutable versions in PostgreSQL.</li>
 <li>A background job updates pgvector embeddings of policy clauses for retrieval. The source version remains available to evaluations whatever the embedding state.</li>
 </ol>
+<figure class="uc-diagram">
+<figcaption>UC-02 — Register an agent and versioned evaluation context</figcaption>
+<pre class="mermaid">
+flowchart TD
+  T(["Team onboards an agent or changes its behavior contract"]) --&gt; S1["1 · Admin creates agent, registers agent version"]
+  S1 --&gt; S2["2 · Admin imports or enters tool specs · drafts until reviewed"]
+  S2 --&gt; S3["3 · Policy owner publishes clauses with JSON predicates, tool side effects and retries"]
+  S3 --&gt; S4["4 · Owner defines workflow transitions"]
+  S4 --&gt; S5{{"5 · References, predicates and workflow valid?"}}
+  S5 --&gt;|"no · specific validation error"| S2
+  S5 --&gt;|"yes"| V["Record immutable versions in PostgreSQL"]
+  V --&gt; S6{{"6 · pgvector embedding update succeeded?"}}
+  S6 --&gt;|"yes"| OK(["Evaluations can pin exact versions"]):::ok
+  S6 --&gt;|"no"| U(["Versions intact · retrieval-dependent analysis unavailable until rebuilt"]):::warn
+  S4 -.-&gt;|"abandon before publish"| C(["Nothing published"]):::muted
+</pre>
+</figure>
 <h4>Alternative flows and exceptions</h4>
 <div class="altflow"><h5>UC-02-A1 — Cancellation or interruption</h5>
 <p>Before publication at step 5, the actor may abandon changes without creating a published version. A published artifact remains immutable; a correction requires a new version.</p>
@@ -768,6 +813,24 @@
 <li>The span store writes spans idempotently by project, trace, and span ID. That store is PostgreSQL in the first slice and ClickHouse from Phase 2. PostgreSQL stores the trace record, source metadata needed for diagnostics, and a durable analysis-job record with a stable idempotency key, in one transaction. Acceptance requires both writes.</li>
 <li>The ingestion API acknowledges acceptance. Job publication to Redis is retried or recovered by an outbox/sweep if the queue is temporarily unavailable.</li>
 </ol>
+<figure class="uc-diagram">
+<figcaption>UC-03 — Ingest and normalize an agent trace</figcaption>
+<pre class="mermaid">
+flowchart TD
+  T(["Agent or collector submits OTLP spans with the agentproof.* profile"]) --&gt; S1{{"1 · Caller, project, limits, IDs and structure valid?"}}
+  S1 --&gt;|"no"| R(["Rejected with actionable error · not accepted"]):::err
+  S1 --&gt;|"yes"| S2["2 · Redact before persisting · map spans to canonical types"]
+  S2 --&gt; S3["3 · Rebuild parent-child and order · missing parent recorded as incomplete"]
+  S3 --&gt; S4{{"4 · Idempotent write to span store and PostgreSQL with analysis job"}}
+  S4 --&gt;|"store failure"| R2(["Not accepted · retry with same idempotency key"]):::err
+  S4 --&gt;|"duplicate"| DUP(["Existing trace returned · no duplicate findings"]):::muted
+  S4 --&gt;|"written"| S5["5 · Acknowledge acceptance, publish job to Redis"]
+  S5 --&gt; Q{{"Job queued?"}}
+  Q --&gt;|"yes"| OK(["Trace retrievable, queued for analysis"]):::ok
+  Q --&gt;|"no"| P(["Pending analysis · recovered by outbox sweep"]):::warn
+  T -.-&gt;|"abandon before submission"| C(["Nothing accepted"]):::muted
+</pre>
+</figure>
 <h4>Alternative flows and exceptions</h4>
 <div class="altflow"><h5>UC-03-A1 — Cancellation or interruption</h5>
 <p>Before submission, the sender may abandon the upload. After durable acceptance, disconnecting does not cancel analysis; a retry uses the same idempotency key.</p>
@@ -805,6 +868,28 @@
 <li>The UI displays redacted arguments, statuses, timing, token use, and available costs.</li>
 <li>The developer selects a finding, follows its evidence IDs to the relevant spans and policy or workflow version, and opens the expected-versus-actual path view.</li>
 </ol>
+<figure class="uc-diagram">
+<figcaption>UC-04 — Inspect a trace and its execution trajectory</figcaption>
+<pre class="mermaid">
+flowchart TD
+  T(["Developer selects a trace from the project view"]) --&gt; S1["1 · See outcome, behavioral and analysis states, agent and policy versions"]
+  S1 --&gt; P{{"Trace partial or spans expired?"}}
+  P --&gt;|"partial"| W1["Marked partial · no absence claim from unseen spans"]:::warn
+  P --&gt;|"expired"| W2["Timeline marked expired · findings show evidence snapshots (BR-11)"]:::warn
+  P --&gt;|"no"| S2
+  W1 --&gt; S2["2 · Switch chronological or hierarchical view, filter event types"]
+  S2 --&gt; S3["3 · Inspect redacted arguments, status, timing, tokens, cost"]
+  S3 -.-&gt;|"request raw payload"| RA{{"Extra authorization?"}}
+  RA --&gt;|"yes"| AU["Raw payload shown · access audited"]
+  RA --&gt;|"no"| DN["Denied · keep redacted view"]:::err
+  S3 --&gt; S4
+  AU --&gt; S4
+  DN --&gt; S4
+  W2 --&gt; S4["4 · Select finding, follow evidence IDs, open expected-vs-actual path"]
+  S4 --&gt; OK(["Behavior reconstructed from source records"]):::ok
+  S1 -.-&gt;|"close view at any step"| C(["No record changes"]):::muted
+</pre>
+</figure>
 <h4>Alternative flows and exceptions</h4>
 <div class="altflow"><h5>UC-04-A1 — Cancellation or interruption</h5>
 <p>The developer may close the view at any step. No trace or analysis record changes.</p>
@@ -842,6 +927,23 @@
 <li>If tool choice requires interpreting the task intent, a candidate <code>WRONG_TOOL</code> finding is passed to a bounded semantic critic with the task, tool specifications, and relevant spans. The result is advisory until reviewed (<a href="#br-10">BR-10</a>).</li>
 <li>The evidence validator resolves cited records and verifies values before a finding is confirmed.</li>
 </ol>
+<figure class="uc-diagram">
+<figcaption>UC-05 — Detect tool misuse and invalid arguments</figcaption>
+<pre class="mermaid">
+flowchart TD
+  T(["UC-03 queues a trace for analysis"]) --&gt; SP{{"Tool spec and required arguments available?"}}
+  SP --&gt;|"no"| INC(["INCONCLUSIVE · not a clean pass"]):::warn
+  SP --&gt;|"yes"| S1["1 · Deterministic validators: name, schema version, types, ranges, domain constraints"]
+  S1 --&gt; S2["2 · Separate schema violation from state-inconsistent argument"]
+  S2 --&gt; S3{{"3 · Tool choice needs task intent?"}}
+  S3 --&gt;|"yes"| CR["Semantic critic on candidate WRONG_TOOL · advisory until reviewed (BR-10)"]
+  S3 --&gt;|"no"| S4
+  CR --&gt; S4{{"4 · Evidence validator: cited records and values verified?"}}
+  S4 --&gt;|"yes"| OK(["Validated finding"]):::ok
+  S4 --&gt;|"no"| UN(["Unconfirmed candidate · insufficient evidence"]):::warn
+  T -.-&gt;|"worker interrupted"| C(["Retryable · incomplete, not passed"]):::muted
+</pre>
+</figure>
 <h4>Alternative flows and exceptions</h4>
 <div class="altflow"><h5>UC-05-A1 — Cancellation or interruption</h5>
 <p>This is an automated check, with no interactive cancel operation specified. Worker interruption leaves work retryable and incomplete rather than passed.</p>
@@ -880,6 +982,26 @@
 <li>For a clause without a machine-checkable predicate, pgvector retrieval obtains the exact policy version and a policy critic proposes an advisory judgment (<a href="#br-10">BR-10</a>).</li>
 <li>The validator checks the source clause, relevant spans, event order, and trace completeness before confirming a <code>POLICY_VIOLATION</code> or related finding.</li>
 </ol>
+<figure class="uc-diagram">
+<figcaption>UC-06 — Verify policies and expected trajectories</figcaption>
+<pre class="mermaid">
+flowchart TD
+  T(["Trace has a governed action, or evaluation requests workflow conformance"]) --&gt; CFG{{"Policies consistent?"}}
+  CFG --&gt;|"no"| CE(["Configuration error · affected check stops"]):::err
+  CFG --&gt;|"yes"| MC{{"Clause has a machine-checkable predicate?"}}
+  MC --&gt;|"yes"| S1{{"1 · Predicate applies to arguments and prior state?"}}
+  S1 --&gt;|"no"| NA(["Clause not applicable"]):::muted
+  S1 --&gt;|"undecidable"| INC(["INCONCLUSIVE or analysis error"]):::warn
+  S1 --&gt;|"yes"| S2["2 · Deterministic checks: prior steps, order, branches, forbidden transitions, approval before side effects"]
+  S2 --&gt; S3["3 · Trajectory comparer emits path difference"]
+  S3 --&gt; S5
+  MC --&gt;|"no"| S4["4 · pgvector retrieves exact policy version · critic proposes advisory judgment (BR-10)"]
+  S4 --&gt; S5{{"5 · Validator: clause, spans, event order, completeness OK?"}}
+  S5 --&gt;|"partial at approval boundary"| INC
+  S5 --&gt;|"yes"| OK(["Checks and path differences recorded with versions and evidence"]):::ok
+  T -.-&gt;|"check interrupted"| C(["Incomplete · cannot establish conformance"]):::muted
+</pre>
+</figure>
 <h4>Reference scenario</h4>
 <p>For <code>refund_order(order_id=1024, amount=800)</code>, policy <code>REFUND-004</code> version 3 requires policy lookup and human approval before the refund. If a complete trace shows <code>find_order → refund_order</code>, the system reports the missing prerequisites while preserving <code>Outcome: SUCCESS</code> if the refund actually completed.</p>
 <h4>Alternative flows and exceptions</h4>
@@ -919,6 +1041,22 @@
 <li>The worker excludes retries that a tool policy explicitly permits and labels uncertain efficiency judgments as candidates.</li>
 <li>It reports observed extra calls, tokens, and latency; avoidable cost is an estimate only when its counterfactual assumptions are stated.</li>
 </ol>
+<figure class="uc-diagram">
+<figcaption>UC-07 — Detect loops and inefficient behavior</figcaption>
+<pre class="mermaid">
+flowchart TD
+  T(["Worker analyzes an accepted trace, or evaluation aggregates runs"]) --&gt; S1["1 · Detect repeated identical calls and subsequences"]
+  S1 --&gt; S2{{"2 · Retrieval outputs and embeddings available?"}}
+  S2 --&gt;|"yes"| SIM["Measure overlap or similarity of consecutive results, check for new evidence or state change"]
+  S2 --&gt;|"no"| W["Progress assessment unavailable · deterministic findings kept"]:::warn
+  SIM --&gt; S3{{"3 · Repetition justified by permitted retry or changed state?"}}
+  W --&gt; S3
+  S3 --&gt;|"yes"| EX(["Not reported as a loop"]):::muted
+  S3 --&gt;|"no or uncertain · uncertain ones stay candidates"| S4["4 · Report extra calls, tokens, latency · avoidable cost only with stated assumptions"]
+  S4 --&gt; OK(["ACTION_LOOP, RETRIEVAL_LOOP, NO_PROGRESS or INEFFICIENT_TRAJECTORY with span sequences"]):::ok
+  T -.-&gt;|"interrupted"| C(["Unfinished assessment visible · no fabricated metrics"]):::muted
+</pre>
+</figure>
 <h4>Alternative flows and exceptions</h4>
 <div class="altflow"><h5>UC-07-A1 — Cancellation or interruption</h5>
 <p>This is an automated check, with no interactive cancel operation specified. Interruption leaves unfinished assessment visible; observed metrics are not fabricated.</p>
@@ -957,6 +1095,26 @@
 <li>A valid judgment can become a confirmed SEMANTIC finding. It stays advisory, and outside every gate, until a reviewer marks it CONFIRMED (<a href="#br-10">BR-10</a>). Unsupported claims remain unconfirmed and are visible as insufficient evidence or analysis diagnostics.</li>
 <li>Phase 2: the RCA synthesizer combines validated findings with relevant relationships and clearly separates observed facts, rule-derived conclusions, semantic judgments, and hypotheses. Recommendations point to a concrete action or control.</li>
 </ol>
+<figure class="uc-diagram">
+<figcaption>UC-08 — Validate semantic judgments and generate an RCA</figcaption>
+<pre class="mermaid">
+flowchart TD
+  T(["Analysis submits a candidate needing contextual judgment"]) --&gt; S1["1 · Retriever builds bounded evidence package: pgvector candidates, span tree, PostgreSQL records"]
+  S1 --&gt; ST{{"Candidate embedding stale or missing?"}}
+  ST --&gt;|"yes"| VS{{"Matches authoritative store?"}}
+  VS --&gt;|"no"| AE(["Analysis error"]):::err
+  VS --&gt;|"yes"| S2
+  ST --&gt;|"no"| S2["2 · LangGraph routes to trajectory, policy or efficiency critics"]
+  S2 --&gt; LLM{{"LLM available?"}}
+  LLM --&gt;|"no"| KEEP(["Judgment incomplete · deterministic findings kept"]):::warn
+  LLM --&gt;|"yes"| S3{{"3 · Validator: IDs, versions, values, order, metrics, redaction OK?"}}
+  S3 --&gt;|"no"| UNC(["Unconfirmed · insufficient evidence or diagnostics"]):::warn
+  S3 --&gt;|"yes"| S4["4 · Advisory SEMANTIC finding · outside gates until reviewer CONFIRMED (BR-10)"]
+  S4 --&gt; S5["5 · Phase 2 · RCA separates facts, rule conclusions, judgments, hypotheses"]:::muted
+  S5 --&gt; OK(["Report with traceable assertions"]):::ok
+  T -.-&gt;|"interrupted"| C(["Incomplete · prior validated findings remain"]):::muted
+</pre>
+</figure>
 <h4>Alternative flows and exceptions</h4>
 <div class="altflow"><h5>UC-08-A1 — Cancellation or interruption</h5>
 <p>No interactive cancellation is specified for critic jobs. Interrupted judgment or synthesis remains incomplete; prior validated findings remain available.</p>
@@ -994,6 +1152,24 @@
 <li>The system stores a separate, timestamped annotation with actor identity and preserves the machine-produced finding and evidence.</li>
 <li>Evaluation reports distinguish automated findings from reviewer decisions. If a review changes gate eligibility (for example, confirming an advisory semantic finding under <a href="#br-10">BR-10</a>), the gate is recomputed with the review-policy version recorded.</li>
 </ol>
+<figure class="uc-diagram">
+<figcaption>UC-09 — Review a finding and its evidence</figcaption>
+<pre class="mermaid">
+flowchart TD
+  T(["Reviewer opens a finding from the trace or evaluation UI"]) --&gt; AU{{"Authorized for this finding?"}}
+  AU --&gt;|"no"| D(["Denied · finding not shown"]):::err
+  AU --&gt;|"yes"| S1["1 · See type, severity, evaluator version, confidence, evidence, policy, completeness, analysis state"]
+  S1 --&gt; S2["2 · Follow evidence, record CONFIRMED, DISMISSED or NEEDS_REVIEW with rationale"]
+  S2 --&gt; V{{"Annotation version current?"}}
+  V --&gt;|"obsolete · resolve conflict, resubmit"| S2
+  V --&gt;|"yes"| S3["3 · Store separate timestamped annotation · machine finding preserved"]
+  S3 --&gt; G{{"4 · Review changes gate eligibility?"}}
+  G --&gt;|"yes"| RG["Recompute gate with review-policy version"]
+  G --&gt;|"no"| OK
+  RG --&gt; OK(["Original result and human judgment both inspectable"]):::ok
+  S1 -.-&gt;|"leave before submitting"| C(["No annotation added"]):::muted
+</pre>
+</figure>
 <h4>Alternative flows and exceptions</h4>
 <div class="altflow"><h5>UC-09-A1 — Cancellation or interruption</h5>
 <p>Before submitting step 2, the reviewer may leave without adding an annotation. A committed annotation remains auditable and does not disappear when the view closes.</p>
@@ -1032,6 +1208,24 @@
 <li>The evaluator aggregates trials per case: pass rate, pass^k, and whether any trial broke a mandatory policy. It then aggregates cases: outcomes, finding rates, policy violations, trajectory conformance, latency, tokens, and cost, preserving denominators and missing-data counts (<a href="#br-09">BR-09</a>).</li>
 <li>The system publishes a versioned report and exposes a machine-readable result when the run is complete.</li>
 </ol>
+<figure class="uc-diagram">
+<figcaption>UC-10 — Evaluate an agent version on an external test run</figcaption>
+<pre class="mermaid">
+flowchart TD
+  T(["Developer proposes a code, prompt, tool, model or workflow change"]) --&gt; S1["1 · CI client creates run pinned to candidate, dataset, policy, workflow, evaluator versions and k trials"]
+  S1 --&gt; S2["2 · Customer CI runs each case k times, submits traces with case IDs, trial numbers, idempotency keys"]
+  S2 --&gt; S3["3 · Client signals submission complete · system freezes case set"]
+  S3 --&gt; W{{"All cases, trials, traces and required analyses terminal and valid?"}}
+  W --&gt;|"not yet"| WAIT["Run incomplete · waiting"]:::warn
+  WAIT --&gt; DL{{"Deadline reached?"}}
+  DL --&gt;|"no"| W
+  DL --&gt;|"yes"| ERR(["ERROR · missing work recorded"]):::err
+  W --&gt;|"yes"| S4["4 · Aggregate per case: pass rate, pass^k, mandatory violations · then across cases"]
+  S4 --&gt; S5["5 · Publish versioned report and machine-readable result"]
+  S5 --&gt; OK(["Completed run with reproducible inputs"]):::ok
+  T -.-&gt;|"abandon before run is created"| C(["Nothing created"]):::muted
+</pre>
+</figure>
 <h4>Alternative flows and exceptions</h4>
 <div class="altflow"><h5>UC-10-A1 — Cancellation or interruption</h5>
 <p>Before creating the run, the client may abandon the request. After creation, stopping uploads leaves an incomplete run; a configured deadline may yield ERROR. No evaluation-cancel API is specified.</p>
@@ -1069,6 +1263,19 @@
 <li>The engineer drills into cases contributing to a changed metric and opens their trace-level findings.</li>
 <li>The comparison becomes a pinned input to a gate decision.</li>
 </ol>
+<figure class="uc-diagram">
+<figcaption>UC-11 — Compare a candidate with a baseline</figcaption>
+<pre class="mermaid">
+flowchart TD
+  T(["Engineer selects candidate and approved baseline, or UC-12 requests comparison"]) --&gt; S1{{"1 · Compatible, dataset versions present?"}}
+  S1 --&gt;|"no"| E(["Comparison error · no misleading percentage"]):::err
+  S1 --&gt;|"yes"| S2["2 · Side-by-side metrics incl. pass^k: absolute change, relative change only for nonzero baseline, sample size · changed cases listed"]
+  S2 --&gt; S3["3 · Drill into contributing cases, open trace-level findings"]
+  S3 --&gt; S4["4 · Comparison pinned as gate input"]
+  S4 --&gt; OK(["Reproducible comparison linked to source runs and cases"]):::ok
+  T -.-&gt;|"leave view"| C(["Evaluations unchanged · no promotion"]):::muted
+</pre>
+</figure>
 <h4>Alternative flows and exceptions</h4>
 <div class="altflow"><h5>UC-11-A1 — Cancellation or interruption</h5>
 <p>The engineer may leave the comparison view at any time. Candidate and baseline evaluations remain unchanged; no gate promotion follows from leaving.</p>
@@ -1106,6 +1313,26 @@
 <li>It returns <code>PASS</code> if all requirements are verifiably satisfied, or <code>FAIL</code> with each breached requirement and its observed value if the complete trustworthy evaluation violates at least one requirement.</li>
 <li>The CI client (<a href="#fr-16">FR-16</a>) maps the result to distinct exit codes. CI continues promotion only for <code>PASS</code>; for any other result it presents the report and stops promotion.</li>
 </ol>
+<figure class="uc-diagram">
+<figcaption>UC-12 — Enforce a CI regression gate</figcaption>
+<pre class="mermaid">
+flowchart TD
+  T(["CI requests a gate result for the evaluation"]) --&gt; P{{"Evaluation complete?"}}
+  P --&gt;|"no"| PEND["Nonterminal pending response"]:::warn
+  P --&gt;|"yes"| I{{"Required inputs available and trustworthy?"}}
+  I --&gt;|"no"| ERR["ERROR with diagnostics"]:::err
+  I --&gt;|"yes"| S1["1 · Evaluate each requirement on pinned metrics, gate-eligible findings (BR-10), baseline changes"]
+  S1 --&gt; S2["2 · Mandatory safety checked independently · consistency uses pass^k"]
+  S2 --&gt; S3{{"3 · All requirements verifiably satisfied?"}}
+  S3 --&gt;|"yes"| PASS["PASS"]:::ok
+  S3 --&gt;|"no"| FAIL["FAIL · breached requirements and observed values"]:::err
+  PASS --&gt; GO(["4 · CI exit code · promotion continues"]):::ok
+  FAIL --&gt; BLK(["4 · CI shows report · promotion blocked"]):::err
+  PEND --&gt; BLK
+  ERR --&gt; BLK
+  T -.-&gt;|"CI stops waiting or times out"| BLK
+</pre>
+</figure>
 <h4>Alternative flows and exceptions</h4>
 <div class="altflow"><h5>UC-12-A1 — Cancellation or interruption</h5>
 <p>If CI stops waiting or times out, promotion remains blocked. Abandoning the request cannot convert a pending or erroneous result to PASS.</p>
@@ -1143,6 +1370,22 @@
 <li>A durable deletion job removes or invalidates the matching ClickHouse span rows, pgvector embeddings, evidence snapshots, and any relevant caches. TTL expiry in ClickHouse covers routine retention; this job covers erasure before expiry.</li>
 <li>The system verifies the projection state and keeps an audit record that does not itself re-expose erased content.</li>
 </ol>
+<figure class="uc-diagram">
+<figcaption>UC-13 — Govern sensitive trace data and derived projections</figcaption>
+<pre class="mermaid">
+flowchart TD
+  T(["Privileged read, retention expiry, or authorized deletion request"]) --&gt; S1{{"1 · Project and role checks pass?"}}
+  S1 --&gt;|"no"| D(["Denied"]):::err
+  S1 --&gt;|"read"| R(["Fields disclosed · privileged raw access recorded"]):::ok
+  S1 --&gt;|"expiry or erasure"| S2["2 · PostgreSQL marks source records, manages deletion per policy"]
+  S2 --&gt; S3["3 · Durable job removes ClickHouse rows, pgvector embeddings, evidence snapshots, caches"]
+  S3 --&gt; O{{"All stores reachable?"}}
+  O --&gt;|"no"| PEN(["Pending, retryable · deleted source not reindexed"]):::warn
+  O --&gt;|"yes"| S4["4 · Verify projection state, audit without re-exposing content"]
+  S4 --&gt; OK(["Verifiable deletion state"]):::ok
+  T -.-&gt;|"admin abandons before submitting"| C(["No deletion"]):::muted
+</pre>
+</figure>
 <h4>Alternative flows and exceptions</h4>
 <div class="altflow"><h5>UC-13-A1 — Cancellation or interruption</h5>
 <p>Before an authorized deletion request is submitted, the administrator may abandon it. Once deletion starts, closing the interface does not reverse erasure or cancel propagation.</p>
@@ -1180,6 +1423,24 @@
 <li>Confirmed findings snapshot their evidence (<a href="#br-11">BR-11</a>); semantic critics may add advisory findings.</li>
 <li>The system aggregates finding rates by agent version and time window and shows them beside the evaluation results for the same version.</li>
 </ol>
+<figure class="uc-diagram">
+<figcaption>UC-14 — Evaluate sampled production traces online</figcaption>
+<pre class="mermaid">
+flowchart TD
+  T(["Sampler selects a production trace"]) --&gt; S1["1 · Decision from trace ID and configured rate · rate recorded"]
+  S1 --&gt; TS{{"Trace terminal before profile timeout?"}}
+  TS --&gt;|"no"| INC["Counted inconclusive"]:::warn
+  TS --&gt;|"yes"| PIN{{"Agent version has pinned context?"}}
+  PIN --&gt;|"no"| NA["Counted not analyzable"]:::warn
+  PIN --&gt;|"yes"| S2["2 · Worker runs UC-05, UC-06, UC-07 deterministic checks on pinned versions"]
+  S2 --&gt; S3["3 · Confirmed findings snapshot evidence (BR-11) · critics may add advisory findings"]
+  S3 --&gt; S4["4 · Aggregate finding rates by version and window, beside evaluation results"]
+  INC --&gt; S4
+  NA --&gt; S4
+  S4 --&gt; OK(["Rates with denominators: sampled, analyzed, inconclusive"]):::ok
+  OP(["Operator lowers rate or pauses sampling"]):::muted -.-&gt;|"pause recorded as a visible gap"| S1
+</pre>
+</figure>
 <h4>Alternative flows and exceptions</h4>
 <div class="altflow"><h5>UC-14-A1 — Cancellation or interruption</h5>
 <p>The operator may lower the sampling rate or pause sampling; traces already sampled continue through analysis. Pausing is recorded so the gap is visible in rates.</p>
@@ -1216,6 +1477,20 @@
 <li>The worker evaluates session-scoped policy clauses over the ordered turns, so a required prior step may appear in an earlier turn.</li>
 <li>The user opens any turn in the trace view (<a href="#uc-04">UC-04</a>).</li>
 </ol>
+<figure class="uc-diagram">
+<figcaption>UC-15 — Inspect a multi-turn session</figcaption>
+<pre class="mermaid">
+flowchart TD
+  T(["User opens a session, or a session-scoped policy needs evaluation"]) --&gt; S1["1 · Order session traces · each turn with outcome, behavior state, findings, agent version"]
+  S1 --&gt; G{{"Earlier turns missing, unsampled or expired?"}}
+  G --&gt;|"yes"| GAP["Gaps shown · dependent checks INCONCLUSIVE (BR-02)"]:::warn
+  G --&gt;|"no"| S2
+  GAP --&gt; S2["2 · Worker evaluates session-scoped clauses over ordered turns"]
+  S2 --&gt; S3["3 · User opens any turn in the trace view (UC-04)"]
+  S3 --&gt; OK(["Ordered timeline with per-turn results · session checks recorded"]):::ok
+  T -.-&gt;|"leave view"| C(["Nothing changes"]):::muted
+</pre>
+</figure>
 <h4>Alternative flows and exceptions</h4>
 <div class="altflow"><h5>UC-15-A1 — Cancellation or interruption</h5>
 <p>The user may leave the session view at any time; nothing changes.</p>
@@ -1252,6 +1527,20 @@
 <li>The user compares versions and opens contributing traces.</li>
 <li>Behavioral finding rates for the same filter appear beside usage, so a cheaper version that violates more policies is visible as such.</li>
 </ol>
+<figure class="uc-diagram">
+<figcaption>UC-16 — Monitor usage, cost, and latency</figcaption>
+<pre class="mermaid">
+flowchart TD
+  T(["User opens or filters the usage dashboard"]) --&gt; S1["1 · Aggregate tokens, cost, latency percentiles by project, version, model, tool, window"]
+  S1 --&gt; N{{"Values unreported or model missing from price table?"}}
+  N --&gt;|"yes"| U["Kept null or unknown · lowers coverage, never summed as zero"]:::warn
+  N --&gt;|"no"| S2
+  U --&gt; S2["2 · Compare versions, open contributing traces"]
+  S2 --&gt; S3["3 · Finding rates shown beside usage for the same filter"]
+  S3 --&gt; OK(["Values with coverage and price-table version"]):::ok
+  T -.-&gt;|"leave dashboard"| C(["Nothing changes"]):::muted
+</pre>
+</figure>
 <h4>Alternative flows and exceptions</h4>
 <div class="altflow"><h5>UC-16-A1 — Cancellation or interruption</h5>
 <p>The user may leave the dashboard at any time; nothing changes.</p>
@@ -1410,7 +1699,30 @@
 </tbody>
 </table>
 </div>
-<footer><hr><p>AgentProof · AP-UC-001 · Version 0.2 · Draft · 24 October 2026</p><p><a href="#contents">Back to contents</a></p></footer>
+<footer><hr><p>AgentProof · AP-UC-001 · Version 0.3 · Draft · 28 October 2026</p><p><a href="#contents">Back to contents</a></p></footer>
 </main>
+<script type="module">
+  // Offline, the flowchart source in each <pre> stays readable as plain text.
+  import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.esm.min.mjs";
+  const classes = `
+  classDef ok stroke:#7ee787,stroke-width:2px
+  classDef err stroke:#f85149,stroke-width:2px
+  classDef warn stroke:#d29922,stroke-width:2px
+  classDef muted stroke:#9aa7b4,stroke-dasharray:4 3,color:#9aa7b4`;
+  for (const el of document.querySelectorAll("pre.mermaid")) el.textContent += classes;
+  mermaid.initialize({
+    startOnLoad: false,
+    theme: "dark",
+    flowchart: { nodeSpacing: 30, rankSpacing: 30 },
+    themeVariables: {
+      background: "#161b22", primaryColor: "#1c2230", mainBkg: "#1c2230", nodeBorder: "#3d4653",
+      primaryTextColor: "#e6edf3",
+      primaryBorderColor: "#3d4653", lineColor: "#9aa7b4", edgeLabelBackground: "#161b22",
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif',
+      fontSize: "14px",
+    },
+  });
+  await mermaid.run();
+</script>
 </body>
 </html>
