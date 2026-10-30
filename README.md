@@ -2,7 +2,7 @@
 
 AgentProof helps teams inspect AI agent runs, verify behavior against policies and expected workflows, and gate releases with evidence-backed evaluations.
 
-> **Status: architecture and implementation plan.** This README documents the intended product and technical design. The supplied material does not include an application repository, working deployment, public endpoints, maintainers' contact details, or released software. Commands and APIs described as proposed below are contracts to implement, not currently verified interfaces.
+> **Status: design with a partial implementation.** This README summarizes the intended product. [`docs/architecture/ARCHITECTURE.md`](docs/architecture/ARCHITECTURE.md) holds the architecture and its decisions, and [`docs/USECASE_SPECIFICATION.html`](docs/USECASE_SPECIFICATION.html) holds the requirements. The repository holds the backend and frontend shells, the schema and seed, and the local Docker stack. It has no public endpoints, maintainers' contact details, or released software. Commands and APIs described as proposed below are contracts to implement, not currently verified interfaces.
 
 ## Status and ownership
 
@@ -56,57 +56,64 @@ It accepts OpenTelemetry-compatible agent traces, normalizes framework-specific 
 
 ```mermaid
 flowchart TD
-    A["Browser and CI clients"] --> G["Traefik Hub gateway"]
-    U["Auth0"] --> G
-    T["Agent telemetry"] --> G
-    G --> API["Application API"]
-    G --> ING["Ingestion API"]
-    ING --> P[(PostgreSQL + pgvector)]
-    ING --> Q[(Redis queue)]
-    Q --> W["Analysis workers"]
+    B["Browser"] --> FE["frontend, Next.js"]
+    FE -->|"/api rewrite"| G["Envoy API gateway"]
+    A["CI client"] --> G
+    T["Agent telemetry over OTLP HTTP"] --> G
+    U["Auth0"] -. "sign-in" .-> FE
+    U -. "signing keys" .-> API
+    G --> API["api"]
+    API --> P[("PostgreSQL and job queue")]
+    API --> B2[("Blob store")]
+    P -. "jobs" .-> W["worker-analysis"]
+    P -. "jobs" .-> C["worker-semantic"]
     W --> P
-    API --> P
+    C --> P
+    C --> V[("Qdrant")]
+    C --> L["Ollama"]
 ```
 
-PostgreSQL is authoritative for canonical business data; semantic embeddings live in it through pgvector and must be rebuildable from versioned records. From Phase 2, ClickHouse stores spans and usage metrics for production volume; PostgreSQL keeps the control plane and every decision record (use case specification, C-01). Redis coordinates asynchronous work. The API and ingestion entrypoints share one domain package but can scale independently.
+PostgreSQL is authoritative for canonical business data, and it holds the job queue through Procrastinate. Qdrant holds semantic embeddings as a projection that must be rebuildable from versioned records. An S3-compatible blob store holds raw batches and large span fields. From Phase 2, ClickHouse stores all spans, including evaluation traces, and usage metrics; PostgreSQL keeps the control plane and every decision record (use case specification, C-01). One backend image runs three process roles: `api`, `worker-analysis`, and `worker-semantic`. Next.js serves the UI and stands in front of Envoy, so Envoy handles only API and OTLP traffic. A shared environment also needs a reverse proxy in front of Next.js. [`ARCHITECTURE.md`](docs/architecture/ARCHITECTURE.md) gives the views, the decisions, and the work still to do. [`docs/architecture/adr/`](docs/architecture/adr/README.md) holds the ADRs.
 
 ### Components
 
-| Component | Responsibility | Planned location |
+| Component | Responsibility | Location |
 |---|---|---|
-| Web | Trace Explorer, evidence graph, evaluation comparison | `apps/web/` |
-| Application API | Project authorization, commands, queries, reviews, gate results | `apps/api/` |
-| Ingestion API | Authenticate, validate, redact, normalize, persist, enqueue | `apps/ingestion/` |
-| Workers | Rules, statistics, retrieval, critics, evidence validation, RCA, evaluation | `apps/worker/`, `src/agentproof/` |
-| Domain core | Canonical trace, policy, finding, evaluation models and ports | `src/agentproof/core/` |
-| Infrastructure adapters | PostgreSQL, ClickHouse, Redis, Auth0, LLM, telemetry | `src/agentproof/infrastructure/` |
+| Web | Next.js: Trace Explorer, expected-versus-actual view, evaluation comparison, browser session | `frontend/` |
+| `api` | Project authorization, commands, queries, reviews, gate results. OTLP HTTP ingestion: authenticate, validate, scrub, redact, persist, defer jobs | `backend/src/api/` |
+| Workers | Normalizer, detectors, evidence validation, critics, evaluation | `backend/src/tasks/` (planned) |
+| Application | Use cases and ports | `backend/src/application/` (planned) |
+| Domain | Canonical trace, policy compiler, detectors, evidence, evaluation, gate | `backend/src/domain/` (empty today) |
+| Infrastructure adapters | PostgreSQL, ClickHouse, blob store, Qdrant, LLM | `backend/src/infrastructure/` |
+| CI client | Go binary and a thin GitHub Action | `clients/` (planned) |
 
-The canonical hierarchy includes agent, LLM, tool, retrieval, handoff, guardrail, and approval spans. Framework adapters map source traces to this model. `core/` depends on interfaces rather than SQLAlchemy, vendor SDKs, or LangGraph.
+The canonical hierarchy includes agent, LLM, tool, retrieval, handoff, guardrail, and approval spans. Framework adapters map source traces to this model. `domain/` and `application/` depend on interfaces rather than SQLAlchemy, vendor SDKs, or LangGraph.
 
 ### Analysis and evidence
 
-1. Ingestion persists a normalized trace and a durable analysis-job record in PostgreSQL, then arranges delivery to workers. The queue message identifies the job; it is not the trace database. The enqueue boundary needs a transactional outbox or equivalent recovery sweep so an accepted trace cannot be silently stranded between database commit and queue publication.
-2. Deterministic checks validate tool arguments, ordering, approvals, explicit policy conditions, and repeated actions. Statistical detectors compare latency, token use, cost, and baseline distributions.
-3. Candidate findings retrieve policy clauses, specifications, similar incidents, and evidence summaries through pgvector with project and version filters. Trajectory paths are derived from the span tree. Source identifiers refer back to authoritative, versioned records.
-4. LangGraph coordinates focused trajectory, policy, and efficiency critics only where semantic judgment helps. Each critic receives a bounded, redacted evidence package and returns a structured judgment with evidence IDs and uncertainty.
-5. An independent evidence validator checks referenced spans, source versions, graph relationships, values, and reproducible metrics. Unsupported judgments remain unconfirmed. RCA synthesis uses validated findings and labels observations, deterministic conclusions, semantic judgments, and hypotheses separately.
+1. Ingestion writes spans, the trace record, and a durable analysis job in PostgreSQL in one transaction. The job queue is in the same database, so an accepted trace cannot be stranded between a commit and a publish. A job holds IDs only. Business records hold the state, and a periodic task retries the jobs of a worker that stopped.
+2. Deterministic checks validate tool arguments, ordering, approvals, and repeated actions. Policy owners write clauses as temporal-logic formulas, and the system compiles each formula to a deterministic automaton at publication. Statistical detectors compare latency, token use, cost, and baseline distributions.
+3. Candidate findings retrieve policy clauses, specifications, similar incidents, and evidence summaries through Qdrant with project and version filters. Trajectory paths are derived from the span tree. Source identifiers refer back to authoritative, versioned records.
+4. LangGraph coordinates focused trajectory, policy, and efficiency critics only where semantic judgment helps. Each critic receives a bounded, redacted evidence package, has no tools, and returns a structured judgment with evidence IDs and uncertainty.
+5. An independent evidence validator checks referenced spans, source versions, span relationships, values, and reproducible metrics. Unsupported judgments remain unconfirmed. RCA synthesis uses validated findings and labels observations, deterministic conclusions, semantic judgments, and hypotheses separately.
 
-Analysis retries must be idempotent. A missing index or graph projection should surface as an unavailable capability or evaluation `ERROR`, not a fabricated clean result.
+Analysis retries must be idempotent. A missing Qdrant projection should surface as an unavailable capability or evaluation `ERROR`, not a fabricated clean result.
 
 ### External dependencies
 
 | Dependency | Purpose | Planned failure behavior |
 |---|---|---|
 | Auth0 | Human OIDC and machine-to-machine credentials | Protected operations unavailable if authentication cannot complete |
-| Traefik Hub API Gateway | Edge routing and coarse JWT/scope checks | Public API entry unavailable |
-| PostgreSQL | Authoritative traces, metadata, policies, findings, evaluations | Ingestion and core application unavailable |
-| Redis | Analysis and evaluation jobs, retries | New analysis delayed; persisted traces remain recoverable |
-| ClickHouse (Phase 2) | Span and usage-metric storage at production volume | Production views and online evaluation unavailable; release gates do not depend on it |
+| Envoy | API gateway: routing and rate limits for API and OTLP traffic | API entry unavailable; pages still load |
+| PostgreSQL | Authoritative traces, metadata, policies, findings, evaluations, job queue | Ingestion, analysis, and core application unavailable; persisted work stays recoverable |
+| Blob store | Raw batches and large span fields, over the S3 API | Ingestion unavailable; exporters retry. A check that needs a stored field ends in `ERROR` |
+| Qdrant | Embeddings for semantic retrieval | Semantic analysis delayed; deterministic findings and gates continue unless a run requires semantic results |
+| ClickHouse (Phase 2) | Span and usage-metric storage, including evaluation traces | Ingestion and analysis of new traces stop; evaluations end in `ERROR` at their deadline; stored gate decisions stay readable |
 | LLM provider | Semantic critics and RCA | Deterministic findings remain available; required semantic gates return `ERROR` |
 
 ## Getting started
 
-There is currently no implementation repository or verified bootstrap command in the supplied materials. The first implementation milestone should add a pinned development toolchain, `docker-compose.yml`, `.env.example`, migration scripts, and a tested startup command. The intended local stack is Traefik, web, API, ingestion, worker, PostgreSQL (with pgvector), Redis, and an OpenTelemetry Collector; ClickHouse joins in Phase 2.
+Run `task up` for the whole stack in Docker, or `task dev` for native processes with the datastores in Docker. The current stack is Traefik, backend, frontend, PostgreSQL, and Redis. The target local stack replaces Traefik with Envoy, removes Redis, moves the frontend to Next.js, and adds `worker-analysis`, `worker-semantic`, Qdrant, and SeaweedFS; ClickHouse joins in Phase 2.
 
 A complete setup guide must then specify exact Docker/Compose, Python, and Node versions; Auth0 local configuration or a documented development identity option; secrets injection; database migration; seed data; demo trace import; and a verification request to `/health/ready`. Do not interpret the proposed endpoints in this README as evidence that those commands already work.
 
@@ -117,9 +124,11 @@ The following are **proposed configuration categories**, not implemented environ
 | Setting category | Example name | Secret | Purpose |
 |---|---|---|---|
 | Database | `DATABASE_URL` | Yes | PostgreSQL connection |
-| Work queue | `REDIS_URL` | Yes | Redis connection and job delivery |
 | Identity | `AUTH0_ISSUER`, `AUTH0_AUDIENCE` | No | Token issuer and audience checks |
+| UI session | `AUTH0_CLIENT_SECRET`, `AUTH0_SECRET` | Yes | Next.js sign-in and session encryption |
 | Semantic critics | `LLM_API_KEY`, `LLM_MODEL` | API key: yes | Model access and reproducible model selection |
+| Vector store | `QDRANT_URL`, `QDRANT_API_KEY` | API key: yes | Qdrant connection |
+| Blob store | `S3_ENDPOINT_URL`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY` | Keys: yes | S3-compatible object storage |
 | Data handling | `TRACE_RETENTION_DAYS`, `REDACTION_POLICY` | Depends on policy | Retention and pre-persistence redaction |
 
 Secrets belong in a secret store or local untracked environment file, never in committed configuration or trace payloads. The deployment must define precedence, validation, rotation, and failure behavior before launch.
@@ -152,18 +161,18 @@ Suggested API contract: `POST /api/v1/evaluations`, trace ingestion associated w
 ### Layout
 
 ```text
-agentproof/
-├── apps/               api, ingestion, worker, web entrypoints
-├── src/agentproof/     core, auth, ingestion, analysis, critics, knowledge,
-│                     evaluation, infrastructure
-├── deploy/             Compose and Helm deployment definitions
-├── examples/           customer-support agent and evaluation cases
-├── tests/              unit, contract, integration, end-to-end
-├── docs/               API, runbooks, architecture decisions
-└── scripts/            local development and migration helpers
+agent-proof/
+├── backend/            FastAPI, Python 3.13, uv: api, tasks, application,
+│                       domain, infrastructure, core
+├── frontend/           Next.js (target; Vite today), React 19, Refine, Ant Design, pnpm
+├── clients/            Go CI client and GitHub Action (planned)
+├── database/           PostgreSQL schema and seed
+├── docker/             Compose stack
+├── docs/               use case specification, architecture, ADRs
+└── Taskfile.yml        task runner
 ```
 
-The planned stack is Next.js and TypeScript with React Flow; FastAPI, Pydantic, SQLAlchemy 2 and Alembic; PostgreSQL with pgvector, Redis, and ClickHouse (Phase 2); LangGraph for semantic-critic orchestration; OpenTelemetry; Docker Compose locally and Kubernetes with Helm for a later deployment. Separate entrypoints do not require separate domain codebases.
+The stack is Next.js, React 19, Refine, Ant Design, and React Flow for the web; FastAPI, Pydantic, and SQLAlchemy 2 for the backend; Procrastinate on PostgreSQL for background work; PostgreSQL, Qdrant, an S3-compatible blob store, and ClickHouse (Phase 2); LangGraph for semantic-critic orchestration; Envoy as the API gateway; OpenTelemetry for ingestion; Docker Compose locally and Kubernetes with Helm for a later deployment. Parts of this stack are not in the repository yet. Separate process roles do not require separate domain codebases.
 
 ### Standards and local loop
 
@@ -175,7 +184,7 @@ Use Ruff and type checking for Python, ESLint and TypeScript checks for the web 
 |---|---|---|
 | Unit | Policy predicates, argument validation, trajectory alignment, metrics, evidence references, gate logic | Pull request CI |
 | Contract | OTLP mapping, adapter normalization, stable API/event schemas | Pull request CI |
-| Integration | Ingest → persist → enqueue → worker; PostgreSQL and pgvector projections; migration upgrade | Pull request CI with isolated services |
+| Integration | Ingest → persist and defer → worker; PostgreSQL row-level security; Qdrant projections; blob store | Pull request CI with isolated services |
 | End to end | Valid refund, omitted approval, wrong tool, invalid amount, retrieval loop, controlled retry, gate outcomes | Staging or test deployment |
 
 Each fixture needs expected finding types and evidence IDs. Test duplicate delivery, worker crashes, missing projections, partial traces, and fail-closed behavior for mandatory gates. A coverage threshold is not specified yet; set one only after the repository and meaningful tests exist.
@@ -186,18 +195,18 @@ Each fixture needs expected finding types and evidence IDs. Test duplicate deliv
 
 | Stage | Proposed check or action | Promotion condition |
 |---|---|---|
-| Pull request | Ruff, type checks, pytest, migration checks, frontend lint/build, relevant Playwright tests | Required checks pass |
-| Merge to main | Build web, API, ingestion, and worker images tagged by commit SHA | Images published to a registry |
+| Pull request | Ruff, type checks, pytest, frontend lint/build, relevant Playwright tests | Required checks pass |
+| Merge to main | Build the backend and frontend images tagged by commit SHA | Images published to a registry |
 | Staging | Apply compatible migration once, deploy with Helm, run health and end-to-end smoke tests | Healthy and tested release |
 | Production | Promote the same image digests using a controlled release | Explicit release approval in the eventual operating policy |
 
-Use a single migration job before application rollout rather than running Alembic concurrently in every API pod. Database changes should be compatible with both old and new application versions across a rolling update. If migration fails, halt rollout. Rollback should restore previous image digests; it must not assume that reversing an arbitrary database migration is safe. A production rollback command and recovery target cannot be verified until the release name, cluster, and deployment process exist.
+No migration tool exists yet: the SQL files own the schema until a shared environment exists, and a tool must be added before staging. Use a single migration job before application rollout rather than running migrations concurrently in every API pod. Database changes should be compatible with both old and new application versions across a rolling update. If migration fails, halt rollout. Rollback should restore previous image digests; it must not assume that reversing an arbitrary database migration is safe. A production rollback command and recovery target cannot be verified until the release name, cluster, and deployment process exist.
 
 ### Agent customers' CI/CD
 
 AgentProof provides a quality gate inside an existing CI system. The customer executes agent cases in its own environment and sends traces. A gate evaluates the candidate against an explicitly identified baseline and dataset. For example, higher task success must not offset a breached mandatory policy-violation threshold. `FAIL` represents a completed evaluation that violates a configured rule; `ERROR` represents an incomplete or untrustworthy evaluation, including unavailable required analysis.
 
-CI authenticates with a narrowly scoped machine identity, such as `traces:ingest`, `evaluations:run`, and `evaluations:read`, rather than an interactive user account. A future CLI can map `PASS` to exit code 0 and `FAIL`/`ERROR` to distinct nonzero codes. The CLI and its commands have not been implemented in the supplied materials.
+CI authenticates with a narrowly scoped machine identity, such as `traces:ingest`, `evaluations:run`, and `evaluations:read`, rather than an interactive user account. The planned Go CLI maps `PASS` to exit code 0, `FAIL` to 1, `ERROR` to 2, and pending or timeout to 3. The CLI and its commands are not implemented.
 
 ### Environments
 
@@ -205,15 +214,15 @@ Local development is planned with Docker Compose. Staging and production are pro
 
 ## Observability
 
-Separate **customer agent traces being analyzed** from **AgentProof's own operational telemetry**. Customer OTLP data enters ingestion. Traefik, APIs, workers, queues, datastore adapters, and LLM calls emit their own logs, metrics, and traces to an operational observability backend.
+Separate **customer agent traces being analyzed** from **AgentProof's own operational telemetry**. Customer OTLP data enters ingestion. Envoy, the frontend, APIs, workers, the job queue, datastore adapters, and LLM calls emit their own logs, metrics, and traces to an operational observability backend.
 
 Track ingestion acceptance and errors, durable-job backlog and age, worker retries, analysis stage latency, index lag, evidence-validator rejection rate, LLM failures, evaluation completeness, and gate results. Planned endpoints are `/health/live` and `/health/ready`; readiness should test only dependencies needed to serve that entrypoint. Dashboard, alert, and runbook locations remain to be established.
 
 ## Security
 
-Auth0 is the proposed identity provider. Browser users use OIDC Authorization Code with PKCE; collectors and CI clients use client credentials. Traefik Hub handles edge routing and token/scope checks, while FastAPI checks project membership and ownership of each requested trace or evaluation. A scope such as `traces:read` alone never grants access across projects.
+Auth0 is the proposed identity provider. Browser users sign in through Next.js with a server-side session; collectors and CI clients use client credentials. The agent under test and the CI client use separate credentials. Envoy handles API routing and rate limits. The backend validates tokens, checks project membership and ownership of each requested trace or evaluation, and applies a permission table in code. PostgreSQL row-level security is a second tenant check. A scope such as `traces:read` alone never grants access across projects.
 
-Redact credentials and configured sensitive fields before persistence, enforce limits on payload size and access to raw payloads, and audit privileged reads. Limit critic inputs to bounded, filtered evidence and treat retrieved text as untrusted data. Keep PostgreSQL, Redis, and ClickHouse on private networks. TLS termination, encryption at rest, dependency scanning, secret rotation, and vulnerability reporting procedures need implementation and operational review before any real customer data is ingested.
+Redact credentials and configured sensitive fields before persistence, enforce limits on payload size and access to raw payloads, and audit privileged reads. Limit critic inputs to bounded, filtered evidence and treat retrieved text as untrusted data. Treat trace content as untrusted in the UI. Keep PostgreSQL, Qdrant, the blob store, and ClickHouse on private networks. Section 12.4 of [`ARCHITECTURE.md`](docs/architecture/ARCHITECTURE.md) lists the security findings. TLS termination, encryption at rest, dependency scanning, secret rotation, and vulnerability reporting procedures need implementation and operational review before any real customer data is ingested.
 
 ## Compliance and data handling
 
@@ -242,16 +251,15 @@ No release line or support window exists yet. Choose an API compatibility and de
 
 ## Governance
 
-Architectural decisions that change the authoritative store, security boundary, canonical trace model, or gate semantics should be recorded as ADRs under `docs/adr/` once the repository exists. Project ownership, code review rules, release approval, and incident escalation are open operational decisions; no specific maintainer or approval count is implied here.
+Architectural decisions that change the authoritative store, security boundary, canonical trace model, or gate semantics should be recorded as ADRs under `docs/architecture/adr/`. Project ownership, code review rules, release approval, and incident escalation are open operational decisions; no specific maintainer or approval count is implied here.
 
 ## Roadmap
 
 | Phase | Deliverable | Status |
 |---|---|---|
-| 1. Trace foundation | Canonical model, OTLP ingestion, PostgreSQL, rules, basic explorer | Planned |
-| 2. Behavioral forensics and production observability | pgvector retrieval, critics, validator, RCA, evidence UI; ClickHouse span store, online evaluation, sessions, usage dashboards | Planned |
-| 3. Release assurance | Versioned datasets, baseline comparison, gate API and CI integration | Planned |
-| 4. Production hardening | Additional adapters, tenant isolation, operations, scale testing | Planned |
+| 1. First complete slice | Evaluation and gate first (spec D12): canonical model, OTLP ingestion, policy compiler, detectors, advisory critics, evidence validator, Trace Explorer, comparison, gate, CI client | Planned |
+| 2. Production observability | RCA, deletion propagation, ClickHouse span store, online evaluation, sessions, usage dashboards | Planned |
+| 3. Production hardening | Additional adapters, operations, scale testing | Planned |
 
 The first complete demonstration is a customer-support refund that succeeds at the task while violating an approval policy. The interface must reveal the missing approval, the exact tool call and applicable policy version, and a gate that rejects the regressed agent version.
 

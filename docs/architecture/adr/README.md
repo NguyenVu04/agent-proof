@@ -1,13 +1,3 @@
-<!--
-  ADR INDEX TEMPLATE
-  ==================
-  Copy to your project as docs/adr/README.md, alongside the record template
-  0000-record-architecture-decisions.md.
-
-  Same conventions as README.template.md: replace every <PLACEHOLDER>, delete
-  every GUIDANCE comment and this block.
--->
-
 # Architecture decision records
 
 An ADR captures one architecturally significant decision: what we chose, what
@@ -62,4 +52,8 @@ they were written, because they are the historical account.
 
 | # | Title | Status | Date |
 |---|---|---|---|
-| [0000](0000-record-architecture-decisions.md) | Record architecture decisions | Accepted | <YYYY-MM-DD> |
+| [0000](0000-record-architecture-decisions.md) | Record architecture decisions | Accepted | 2026-10-31 |
+| [0001](0001-postgresql-job-queue-with-procrastinate.md) | Use PostgreSQL with Procrastinate as the job queue | Accepted | 2026-10-31 |
+| [0002](0002-temporal-logic-policies-compiled-to-dfa.md) | Write policies in temporal logic and compile them to DFAs | Accepted | 2026-10-31 |
+| [0003](0003-all-spans-in-clickhouse-from-phase-2.md) | Store all spans in ClickHouse from Phase 2 | Accepted | 2026-10-31 |
+| [0004](0004-authorization-in-code-with-row-level-security.md) | Keep authorization in code, with row-level security as a second lock | Accepted | 2026-10-31 |

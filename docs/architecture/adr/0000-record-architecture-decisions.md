@@ -1,28 +1,12 @@
-<!--
-  This file is both the record template and, as written, a real first ADR.
-
-  To adopt the practice: copy this file into your project as
-  docs/adr/0000-record-architecture-decisions.md, set the date, and it is done —
-  the decision it records is the decision to keep ADRs at all.
-
-  To write a new record: copy this file to NNNN-short-title-in-kebab-case.md and
-  replace the content. Keep the five headings; they are the whole discipline.
-  Delete this comment block in either case.
--->
-
 # 1. Record architecture decisions
 
 - **Status:** Accepted
-- **Date:** <YYYY-MM-DD>
-- **Deciders:** <WHO_DECIDED>
+- **Date:** 2026-10-31
+- **Deciders:** Nguyễn Vũ
 - **Supersedes:** —
 - **Superseded by:** —
 
 ## Context
-
-<!-- GUIDANCE: The situation that forces a decision — constraints, pressures, and
-     what is currently true. Write it so a reader who was not there understands
-     why this was hard. State facts, not the conclusion. -->
 
 This project makes decisions that shape it for years: which datastore, which
 integration boundaries, which trade-offs we accept knowingly. Today that reasoning
@@ -36,10 +20,7 @@ existed for a reason nobody can now state.
 
 ## Decision
 
-<!-- GUIDANCE: One paragraph, active voice, present tense: "We do X." Not "we
-     should" or "we will consider". -->
-
-We record architecturally significant decisions as ADRs in `docs/adr/`, one file
+We record architecturally significant decisions as ADRs in `docs/architecture/adr/`, one file
 per decision, numbered sequentially and written at the time the decision is made.
 Records are immutable once accepted: a decision that no longer holds is superseded
 by a new record rather than edited.
@@ -48,10 +29,6 @@ The criteria for significance, and the process, are in
 [README.md](README.md).
 
 ## Consequences
-
-<!-- GUIDANCE: Both directions. A record that lists only benefits is advocacy, not
-     a decision record — and it is the costs that a future reader needs, because
-     they are what changed by the time they are reading. -->
 
 **Positive**
 
@@ -72,10 +49,6 @@ The criteria for significance, and the process, are in
 - Records accumulate and are never deleted. Superseded records stay as history.
 
 ## Alternatives considered
-
-<!-- GUIDANCE: What else was on the table, and the specific reason it lost. "We
-     considered X" with no reason is not useful; the reason is the entire value,
-     because it is what a future reader re-evaluates when circumstances change. -->
 
 **Keep the reasoning in pull request descriptions.** Nothing extra to maintain,
 and it is already where the discussion happens. Rejected because it is not
